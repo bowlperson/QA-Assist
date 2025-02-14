@@ -1,0 +1,29 @@
+{
+     "manifest_version": 2,
+	"name": "QA Assist",
+	"version": "1.456",
+	"description": "A tool to enhance QA workflows with automation and logging.",
+	"author": "Abel Orta",
+	"icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+	},
+	
+    "permissions": ["tabs", "storage", "activeTab", "scripting"],
+    "background": {
+        "scripts": ["background.js"],
+        "persistent": false
+    },
+    "content_scripts": [
+        {
+            "matches": ["*://*/*"],
+            "js": ["content.js"]
+        }
+    ],
+    "browser_action": {
+        "default_popup": "popup.html",
+        "default_icon": "icon.png"
+    },
+    "options_page": "log.html"
+}

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Event Log</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #222; color: #fff; padding: 20px; }
+        h2 { margin: 0; }
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
+        #eventCount {
+            font-size: 14px;
+            color: #aaa;
+            margin-left: 10px;
+        }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; border: 1px solid #555; text-align: left; }
+        th { background-color: #444; }
+        tr:nth-child(even) { background-color: #333; }
+        tr:hover { background-color: #555; }
+        
+        /* URL color fix */
+        a {
+            color: #66ccff; /* Light blue */
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: #99e6ff; /* Lighter blue on hover */
+            text-decoration: underline;
+        }
+
+        /* Buttons */
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #clearLogs, #exportCSV {
+            background-color: #cc0000; /* Red button */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 8px 12px;
+        }
+
+        #exportCSV {
+            background-color: #007bff; /* Blue button */
+        }
+
+        #clearLogs:hover {
+            background-color: #ff4444; /* Lighter red */
+        }
+
+        #exportCSV:hover {
+            background-color: #3399ff; /* Lighter blue */
+        }
+
+        /* Search filter input */
+        #filterInput {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            background-color: #333;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="log-header">
+        <h2>Recorded Events <span id="eventCount">(Watched 0 Events)</span></h2>
+        <div class="button-group">
+            <button id="exportCSV">Export to CSV</button>
+            <button id="clearLogs">Clear Logs</button>
+        </div>
+    </div>
+
+    <!-- Search filter input -->
+    <input type="text" id="filterInput" placeholder="Search events...">
+
+    <table>
+        <thead>
+            <tr>
+                <th>Event Type</th>
+                <th>Truck Number</th>
+                <th>Timestamp</th>
+                <th>Page URL</th>
+            </tr>
+        </thead>
+        <tbody id="logTableBody"></tbody>
+    </table>
+
+    <script src="log.js"></script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>QA Assist</title>
+    <style>
+        body { 
+            width: 230px; 
+            font-family: Arial, sans-serif; 
+            text-align: center; 
+            background-color: #222;
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        h3, h4 {
+            color: #ddd;
+            margin-bottom: 5px;
+        }
+
+        #toggle, #speed, #keySelect, #autoPressNext, #removeEyeTracker {
+            margin-top: 10px;
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        #toggle, #autoPressNext, #removeEyeTracker {
+            cursor: pointer;
+        }
+
+        select {
+            width: 100%;
+        }
+
+        #status {
+            margin-top: 10px; 
+            font-weight: bold;
+        }
+
+        #statusText {
+            color: limegreen;
+        }
+
+        .dropdown-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .dropdown-container div {
+            width: 48%;
+            text-align: left;
+        }
+
+        #viewLogs {
+            margin-top: 15px;
+            padding: 8px;
+            width: 100%;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #viewLogs:hover {
+            background-color: #3399ff;
+        }
+    </style>
+</head>
+<body>
+    <h3>QA Assist</h3>
+
+    <label>
+        <input type="checkbox" id="toggle">
+        Activate
+    </label>
+
+    <div class="dropdown-container">
+        <div>
+            <h4>Speed</h4>
+            <select id="speed">
+                <option value="1" selected>1x</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2x</option>
+            </select>
+        </div>
+
+        <div>
+            <h4>Key</h4>
+            <select id="keySelect">
+                <option value="ArrowRight">OAS</option>
+                <option value="ArrowDown" selected>OpWeb</option>
+            </select>
+        </div>
+    </div>
+
+    <label>
+        <input type="checkbox" id="autoPressNext">
+        Auto Press Next (OpWeb only)
+    </label>
+
+    <!-- Spacer to move "Remove Eye Tracker" lower -->
+    <div style="margin-top: 8px;"></div>
+
+    <label>
+        <input type="checkbox" id="removeEyeTracker">
+        Remove Eye Tracker
+    </label>
+
+    <p id="status">Status: <span id="statusText">Checking...</span></p>
+
+    <button id="viewLogs">View Logs</button>
+
+    <script src="popup.js"></script>
+</body>
+</html>
