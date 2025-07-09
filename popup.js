@@ -3,26 +3,29 @@ document.addEventListener("DOMContentLoaded", function () {
     let speedSelect = document.getElementById("speed");
     let keySelect = document.getElementById("keySelect");
     let statusText = document.getElementById("statusText");
+    let statusIcon = document.getElementById("statusIcon"); // 48x48px Image for status
     let autoPressNextToggle = document.getElementById("autoPressNext");
-    let removeEyeTrackerToggle = document.getElementById("removeEyeTracker"); // New toggle
-    let viewLogsButton = document.getElementById("viewLogs"); // "View Logs" button
-
-    // Load stored settings with new defaults
+    let removeEyeTrackerToggle = document.getElementById("removeEyeTracker");
+    let viewLogsButton = document.getElementById("viewLogs");
+    
+    // Load stored settings
     chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker"], function (data) {
         console.log("🔄 Loaded settings:", data);
 
         toggle.checked = data.enabled ?? false;
-        speedSelect.value = data.playbackSpeed || "1"; // Default to 1x
-        keySelect.value = data.pressKey || "ArrowDown"; // Default to ArrowDown
-        autoPressNextToggle.checked = data.autoPressNext ?? false; // Default to disabled
-        removeEyeTrackerToggle.checked = data.removeEyeTracker ?? false; // Default to disabled
+        speedSelect.value = data.playbackSpeed || "1"; 
+        keySelect.value = data.pressKey || "ArrowDown"; 
+        autoPressNextToggle.checked = data.autoPressNext ?? false;
+        removeEyeTrackerToggle.checked = data.removeEyeTracker ?? false;
+
         updateStatus(toggle.checked);
     });
 
-    // Function to update the status indicator
+    // Function to update status text and icon
     function updateStatus(isEnabled) {
         statusText.textContent = isEnabled ? "Enabled" : "Disabled";
         statusText.style.color = isEnabled ? "green" : "red";
+        statusIcon.src = isEnabled ? "on.png" : "off.png"; // Change icon
     }
 
     // Toggle switch event

@@ -11,6 +11,7 @@
             color: #fff;
             padding: 10px;
             border-radius: 5px;
+            position: relative;
         }
 
         h3, h4 {
@@ -70,10 +71,22 @@
         #viewLogs:hover {
             background-color: #3399ff;
         }
+
+        /* Status Icon */
+        #statusIcon {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 48px;
+            height: 48px;
+        }
     </style>
 </head>
 <body>
     <h3>QA Assist</h3>
+    
+    <!-- Status Icon -->
+    <img id="statusIcon" src="off.png" alt="Status">
 
     <label>
         <input type="checkbox" id="toggle">
@@ -105,7 +118,6 @@
         Auto Press Next (OpWeb only)
     </label>
 
-    <!-- Spacer to move "Remove Eye Tracker" lower -->
     <div style="margin-top: 8px;"></div>
 
     <label>

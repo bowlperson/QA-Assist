@@ -1,90 +1,105 @@
+// log.js
 document.addEventListener("DOMContentLoaded", function () {
-    let logTableBody = document.getElementById("logTableBody");
-    let clearLogsButton = document.getElementById("clearLogs"); 
-    let exportCSVButton = document.getElementById("exportCSV");
-    let eventCount = document.getElementById("eventCount"); // Get the event count span
-    let filterInput = document.getElementById("filterInput"); // Get the search input box
+    const logTableBody = document.getElementById("logTableBody");
+    const bookmarkBody = document.getElementById("bookmarkBody");
+    const clearLogsButton = document.getElementById("clearLogs");
+    const exportCSVButton = document.getElementById("exportCSV");
+    const eventCount = document.getElementById("eventCount");
+    const bookmarkCount = document.getElementById("bookmarkCount");
+    const filterInput = document.getElementById("filterInput");
 
-    let logs = []; // Store logs in memory for filtering
+    let logs = [];
 
-    // Load stored logs and display them in the table
+    // Load logs
     chrome.storage.local.get("eventLogs", function (data) {
         logs = data.eventLogs || [];
-        
-        // Update event count display
-        eventCount.textContent = `(Watched ${logs.length} Events)`;
-
-        displayLogs(logs);
+        updateDisplays(logs);
     });
 
-    // Function to display logs based on filter
-    function displayLogs(filteredLogs) {
-        logTableBody.innerHTML = ""; // Clear the table
-        filteredLogs.forEach(log => {
-            let row = document.createElement("tr");
+    function updateDisplays(allLogs) {
+        const keyword = filterInput.value.toLowerCase();
+        const bookmarks = allLogs.filter(log => log.bookmarked);
+        const normalLogs = allLogs.filter(log => !log.bookmarked);
 
-            row.innerHTML = `<td>${log.eventType}</td>
-                             <td>${log.truckNumber}</td>
-                             <td>${log.timestamp}</td>
-                             <td><a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a></td>`;
-            
+        // Filter normal by keyword
+        const filtered = normalLogs.filter(log =>
+            (log.eventType || "").toLowerCase().includes(keyword) ||
+            (log.truckNumber || "").toLowerCase().includes(keyword) ||
+            (log.timestamp || "").toLowerCase().includes(keyword) ||
+            (log.pageUrl || "").toLowerCase().includes(keyword)
+        );
+
+        // Update counts
+        eventCount.textContent = `(Watched ${normalLogs.length} Events)`;
+        bookmarkCount.textContent = `(${bookmarks.length} Bookmarked)`;
+
+        // Render bookmarks
+        bookmarkBody.innerHTML = "";
+        bookmarks.slice().reverse().forEach(log => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${log.eventType || '—'}</td>
+                <td>${log.truckNumber || '—'}</td>
+                <td>${log.timestamp || '—'}</td>
+                <td>
+                  <a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>
+                  <button class="mark-btn">\u2605</button>
+                </td>
+                <td><span class="comment-text">${log.comment || ''}</span></td>
+            `;
+            row.querySelector('.mark-btn').addEventListener('click', () => {
+                log.bookmarked = false;
+                chrome.storage.local.set({ eventLogs: logs }, () => updateDisplays(logs));
+            });
+            bookmarkBody.appendChild(row);
+        });
+
+        // Render normal logs
+        logTableBody.innerHTML = "";
+        filtered.slice().reverse().forEach(log => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${log.eventType || '—'}</td>
+                <td>${log.truckNumber || '—'}</td>
+                <td>${log.timestamp || '—'}</td>
+                <td>
+                  <a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>
+                  <button class="mark-btn">\u2606</button>
+                </td>
+            `;
+            row.querySelector('.mark-btn').addEventListener('click', () => {
+                const comment = prompt('Add a comment for this bookmark:');
+                log.bookmarked = true;
+                log.comment = comment || '';
+                chrome.storage.local.set({ eventLogs: logs }, () => updateDisplays(logs));
+            });
             logTableBody.appendChild(row);
         });
     }
 
-    // Event listener for clearing logs
+    // Clear logs
     clearLogsButton.addEventListener("click", function () {
         if (confirm("Are you sure you want to clear all logs?")) {
-            chrome.storage.local.set({ eventLogs: [] }, () => {
-                console.log("🗑️ All logs cleared.");
-                logs = [];
-                displayLogs(logs);
-                eventCount.textContent = `(Watched 0 Events)`;
-            });
+            logs = [];
+            chrome.storage.local.set({ eventLogs: [] }, () => updateDisplays(logs));
         }
     });
 
-    // Event listener for filtering logs
-    filterInput.addEventListener("input", function () {
-        let keyword = filterInput.value.toLowerCase();
-        let filteredLogs = logs.filter(log => 
-            log.eventType.toLowerCase().includes(keyword) ||
-            log.truckNumber.toLowerCase().includes(keyword) ||
-            log.timestamp.toLowerCase().includes(keyword) ||
-            log.pageUrl.toLowerCase().includes(keyword)
-        );
-        displayLogs(filteredLogs);
-    });
+    // Filtering
+    filterInput.addEventListener("input", () => updateDisplays(logs));
 
-    // Function to export logs to CSV
-    function exportToCSV() {
-        let keyword = filterInput.value.toLowerCase();
-        let filteredLogs = logs.filter(log => 
-            log.eventType.toLowerCase().includes(keyword) ||
-            log.truckNumber.toLowerCase().includes(keyword) ||
-            log.timestamp.toLowerCase().includes(keyword) ||
-            log.pageUrl.toLowerCase().includes(keyword)
-        );
-
-        // Convert logs to CSV format
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Event Type,Truck Number,Timestamp,Page URL\n";
-
-        filteredLogs.forEach(log => {
-            let row = `"${log.eventType}","${log.truckNumber}","${log.timestamp}","${log.pageUrl}"`;
-            csvContent += row + "\n";
+    // Export to CSV
+    exportCSVButton.addEventListener("click", function () {
+        let csvContent = "data:text/csv;charset=utf-8,Event Type,Truck Number,Timestamp,Page URL,Bookmarked,Comment\n";
+        logs.forEach(log => {
+            csvContent += `"${log.eventType}","${log.truckNumber}","${log.timestamp}","${log.pageUrl}","${log.bookmarked ? 'Yes' : 'No'}","${log.comment || ''}"\n`;
         });
-
-        // Create a downloadable link
-        let encodedUri = encodeURI(csvContent);
-        let link = document.createElement("a");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
         link.setAttribute("download", "event_logs.csv");
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }
-
-    // Event listener for exporting logs
-    exportCSVButton.addEventListener("click", exportToCSV);
+    });
 });
