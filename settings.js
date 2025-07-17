@@ -1,4 +1,4 @@
-const eventTypes = ['Searching Face', 'Blocked', 'Micro Sleep', 'Distraction'];
+const eventTypes = ['Searching Face', 'Blocked', 'Micro Sleep', 'Distraction', 'Microsleep'];
 const speeds = ['1', '1.25', '1.5', '2'];
 
 document.addEventListener('DOMContentLoaded', () => {
