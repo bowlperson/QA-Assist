@@ -1,112 +1,122 @@
-// log.js
-document.addEventListener("DOMContentLoaded", function () {
-    const logTableBody = document.getElementById("logTableBody");
-    const bookmarkBody = document.getElementById("bookmarkBody");
-    const clearLogsButton = document.getElementById("clearLogs");
-    const exportCSVButton = document.getElementById("exportCSV");
-    const eventCount = document.getElementById("eventCount");
-    const bookmarkCount = document.getElementById("bookmarkCount");
-    const filterInput = document.getElementById("filterInput");
-    const openSettingsButton = document.getElementById("openSettings");
-
-    let logs = [];
-
-    // Load logs
-    chrome.storage.local.get("eventLogs", function (data) {
-        logs = data.eventLogs || [];
-        updateDisplays(logs);
-    });
-
-    function updateDisplays(allLogs) {
-        const keyword = filterInput.value.toLowerCase();
-        const bookmarks = allLogs.filter(log => log.bookmarked);
-        const normalLogs = allLogs.filter(log => !log.bookmarked);
-
-        // Filter normal by keyword
-        const filtered = normalLogs.filter(log =>
-            (log.eventType || "").toLowerCase().includes(keyword) ||
-            (log.truckNumber || "").toLowerCase().includes(keyword) ||
-            (log.timestamp || "").toLowerCase().includes(keyword) ||
-            (log.pageUrl || "").toLowerCase().includes(keyword)
-        );
-
-        // Update counts
-        eventCount.textContent = `(Watched ${normalLogs.length} Events)`;
-        bookmarkCount.textContent = `(${bookmarks.length} Bookmarked)`;
-
-        // Render bookmarks
-        bookmarkBody.innerHTML = "";
-        bookmarks.slice().reverse().forEach(log => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>${log.eventType || '—'}</td>
-                <td>${log.truckNumber || '—'}</td>
-                <td>${log.timestamp || '—'}</td>
-                <td>
-                  <a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>
-                  <button class="mark-btn">\u2605</button>
-                </td>
-                <td><span class="comment-text">${log.comment || ''}</span></td>
-            `;
-            row.querySelector('.mark-btn').addEventListener('click', () => {
-                log.bookmarked = false;
-                chrome.storage.local.set({ eventLogs: logs }, () => updateDisplays(logs));
-            });
-            bookmarkBody.appendChild(row);
-        });
-
-        // Render normal logs
-        logTableBody.innerHTML = "";
-        filtered.slice().reverse().forEach(log => {
-            const row = document.createElement("tr");
-            row.innerHTML = `
-                <td>${log.eventType || '—'}</td>
-                <td>${log.truckNumber || '—'}</td>
-                <td>${log.timestamp || '—'}</td>
-                <td>
-                  <a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>
-                  <button class="mark-btn">\u2606</button>
-                </td>
-            `;
-            row.querySelector('.mark-btn').addEventListener('click', () => {
-                const comment = prompt('Add a comment for this bookmark:');
-                log.bookmarked = true;
-                log.comment = comment || '';
-                chrome.storage.local.set({ eventLogs: logs }, () => updateDisplays(logs));
-            });
-            logTableBody.appendChild(row);
-        });
-    }
-
-    // Clear logs
-    clearLogsButton.addEventListener("click", function () {
-        if (confirm("Are you sure you want to clear all logs?")) {
-            logs = [];
-            chrome.storage.local.set({ eventLogs: [] }, () => updateDisplays(logs));
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UFC-8">
+    <title>Event Log</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: #fff;
+            padding: 20px;
         }
-    });
 
-    // Filtering
-    filterInput.addEventListener("input", () => updateDisplays(logs));
+        h2 {
+            margin: 0;
+        }
 
-    if (openSettingsButton) {
-        openSettingsButton.addEventListener("click", () => {
-            window.open("settings.html");
-        });
-    }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+        }
 
-    // Export to CSV
-    exportCSVButton.addEventListener("click", function () {
-        let csvContent = "data:text/csv;charset=utf-8,Event Type,Truck Number,Timestamp,Page URL,Bookmarked,Comment\n";
-        logs.forEach(log => {
-            csvContent += `"${log.eventType}","${log.truckNumber}","${log.timestamp}","${log.pageUrl}","${log.bookmarked ? 'Yes' : 'No'}","${log.comment || ''}"\n`;
-        });
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", "event_logs.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    });
-});
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #openSettings {
+            background: none;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            font-size: 18px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
+        #clearLogs,
+        #exportCSV {
+            background-color: #cc0000;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 8px 12px;
+        }
+
+        #exportCSV {
+            background-color: #007bff;
+        }
+
+        #clearLogs:hover {
+            background-color: #ff4444;
+        }
+
+        #exportCSV:hover {
+            background-color: #3399ff;
+        }
+
+        #filterInput {
+@@ -95,51 +106,52 @@
+            text-decoration: underline;
+        }
+
+        .mark-btn {
+            background-color: #88888800;
+            border: none;
+            color: #f0da00;
+            font-size: 15px;
+            padding: 4px 8px;
+            border-radius: 2px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+
+        .mark-btn:hover {
+            background-color: #0000001f;
+        }
+
+        .comment-text {
+            color: #ccc;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<meta charset="UFC-8">
+<body>
+<body>
+    <button id="openSettings" title="Settings">\u2699</button>
+    <!-- Bookmarks Section -->
+    <div class="section-header">
+        <h2>Bookmarked Events <span id="bookmarkCount">(0)</span></h2>
+    </div>
+    <table id="bookmarkTable">
+        <thead>
+            <tr>
+                <th>Event Type</th>
+                <th>Truck Number</th>
+                <th>Timestamp</th>
+                <th>Page URL</th>
+                <th>Comment</th>
+            </tr>
+        </thead>
+        <tbody id="bookmarkBody"></tbody>
+    </table>
+
+    <!-- Controls -->
+    <div class="section-header">
+        <h2>Recorded Events <span id="eventCount">(Watched 0 Events)</span></h2>
+        <div class="button-group">
+            <button id="exportCSV">Export to CSV</button>
+            <button id="clearLogs">Clear Logs</button>
+        </div>
+    </div>
