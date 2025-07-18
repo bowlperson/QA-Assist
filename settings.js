@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const skipDelayInput = document.getElementById('skipDelay');
     const smartSkipToggle = document.getElementById('smartSkipToggle');
     const skipContainer = document.getElementById('skipContainer');
+    const keyDelayInput = document.getElementById('keyDelay');
     const saveBtn = document.getElementById('saveSettings');
 
     function updateSkipEnabled() {
@@ -63,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     smartSkipToggle.addEventListener('change', updateSkipEnabled);
 
-    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false }, data => {
+    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, keyDelay: 2 }, data => {
         const rules = data.customSpeedRules;
         if (rules.length === 0) {
             createRuleRow();
@@ -73,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         smartSkipToggle.checked = data.smartSkipEnabled;
         skipDelayInput.value = data.skipDelay || 0;
+        keyDelayInput.value = data.keyDelay ?? 2;
         updateSkipEnabled();
     });
 
@@ -87,15 +89,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (delay > 30) delay = 30;
         skipDelayInput.value = delay;
 
+        let keyDelay = parseFloat(keyDelayInput.value);
+        if (isNaN(keyDelay) || keyDelay < 0) keyDelay = 0;
+        keyDelayInput.value = keyDelay;
+
         const enabled = smartSkipToggle.checked;
 
-        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled }, () => {
+        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, keyDelay }, () => {
             chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
                 if (tabs[0]) {
                     chrome.tabs.sendMessage(tabs[0].id, {
                         customSpeedRules: rules,
                         skipDelay: enabled ? delay : 0,
-                        smartSkipEnabled: enabled
+                        smartSkipEnabled: enabled,
+                        keyDelay
                     });
                 }
             });

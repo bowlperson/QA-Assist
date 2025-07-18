@@ -28,14 +28,20 @@
         }
 
         #openSettings {
-            background: none;
-            border: none;
+            background-color: #007bff;
             color: #fff;
+            border: none;
+            border-radius: 5px;
             cursor: pointer;
-            font-size: 18px;
+            font-size: 14px;
+            padding: 8px 12px;
             position: absolute;
             top: 10px;
             right: 10px;
+        }
+
+        #openSettings:hover {
+            background-color: #3399ff;
         }
 
         #clearLogs,
@@ -128,7 +134,7 @@
 </style>
 </head>
 <body>
-    <button id="openSettings" title="Settings">\u2699</button>
+    <button id="openSettings" title="Settings">Settings</button>
     <!-- Bookmarks Section -->
     <div class="section-header">
         <h2>Bookmarked Events <span id="bookmarkCount">(0)</span></h2>

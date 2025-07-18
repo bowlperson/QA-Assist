@@ -7,6 +7,7 @@ let customSpeedRules = [];
 let noVideoSkipDelay = 0;
 let noVideoTimerId = null;
 let smartSkipEnabled = false;
+let keyDelay = 2; // Delay after video ends before pressing Right Arrow
 
 // Function to store event data from the selected row
 function saveEventData(video) {
@@ -227,11 +228,11 @@ function monitorVideos() {
                     // Only press Right Arrow if "Auto Press Next List" is enabled and it's the last cell
                     chrome.storage.sync.get("autoPressNext", function (data) {
                         if (data.autoPressNext && isLastCell) {
-                            console.log("⏳ Waiting 2 seconds before pressing Right Arrow...");
+                            console.log(`⏳ Waiting ${keyDelay}s before pressing Right Arrow...`);
                             setTimeout(() => {
                                 console.log("➡️ Pressing Right Arrow after delay.");
                                 pressKeyEvent("ArrowRight");
-                            }, 2000);
+                            }, keyDelay * 1000);
                         } else if (!data.autoPressNext) {
                             console.log("🚫 Auto Press Next List is disabled. Right Arrow will not be pressed.");
                         }
@@ -313,6 +314,11 @@ chrome.runtime.onMessage.addListener((request) => {
         console.log("⏩ No-video skip delay updated:", noVideoSkipDelay);
     }
 
+    if (request.keyDelay !== undefined) {
+        keyDelay = parseFloat(request.keyDelay) || 0;
+        console.log("⌛ Key press delay updated:", keyDelay);
+    }
+
     if (request.smartSkipEnabled !== undefined) {
         smartSkipEnabled = request.smartSkipEnabled;
         console.log("⏩ Smart Skip enabled:", smartSkipEnabled);
@@ -323,7 +329,7 @@ chrome.runtime.onMessage.addListener((request) => {
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled", "keyDelay"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
@@ -332,8 +338,9 @@ chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext"
     customSpeedRules = data.customSpeedRules || [];
     noVideoSkipDelay = parseFloat(data.skipDelay) || 0;
     smartSkipEnabled = data.smartSkipEnabled ?? false;
+    keyDelay = parseFloat(data.keyDelay) || 2;
 
-    console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker);
+    console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker + ", Key Delay=" + keyDelay + "s");
 
     if (isEnabled) {
         monitorVideos();
