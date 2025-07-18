@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const eventCount = document.getElementById("eventCount");
     const bookmarkCount = document.getElementById("bookmarkCount");
     const filterInput = document.getElementById("filterInput");
+    const openSettingsButton = document.getElementById("openSettings");
 
     let logs = [];
 
@@ -87,6 +88,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Filtering
     filterInput.addEventListener("input", () => updateDisplays(logs));
+
+    if (openSettingsButton) {
+        openSettingsButton.addEventListener("click", () => {
+            window.open("settings.html");
+        });
+    }
 
     // Export to CSV
     exportCSVButton.addEventListener("click", function () {
