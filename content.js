@@ -1,14 +1,24 @@
 let isEnabled = false;
 let playbackSpeed = 1.0; // Default to 1x speed
-let pressKey = "ArrowRight"; // Default key
+let pressKey = "ArrowDown"; // Default key is Down Arrow
 let autoPressNext = false; // Default to disabled
 let removeEyeTracker = false; // Default to disabled
+let customSpeedRules = [];
+let noVideoSkipDelay = 0;
+let noVideoTimerId = null;
+let smartSkipEnabled = false;
+let keyDelay = 2; // Delay after video ends before pressing Right Arrow
 
 // Function to store event data from the selected row
 function saveEventData(video) {
     let allRows = document.querySelectorAll(".gvEventListItemPadding");
     let selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
-    let isHideTracking = video.closest(".videos.hide-tracking") !== null; // Check if the video is inside hide-tracking
+    let isHideTracking = false;
+    if (video) {
+        isHideTracking = video.closest(".videos.hide-tracking") !== null;
+    } else if (document.querySelector(".videos.hide-tracking .item.selected")) {
+        isHideTracking = true;
+    }
 
     let eventType = "";
     let truckNumber = ""; // Leave blank for hide-tracking
@@ -63,6 +73,11 @@ function saveEventData(video) {
 
     let eventData = { eventType, truckNumber, timestamp, pageUrl, isLastCell };
 
+    // store event type on the video for speed rules
+    if (video) {
+        video.dataset.eventType = eventType;
+    }
+
     chrome.storage.local.get("eventLogs", function (data) {
         let logs = data.eventLogs || [];
         logs.push(eventData);
@@ -71,7 +86,7 @@ function saveEventData(video) {
         console.log("📌 Event logged successfully:", eventData);
     });
 
-    return isLastCell;
+    return { isLastCell, eventType };
 }
 
 
@@ -111,9 +126,41 @@ function pressKeyEvent(key) {
 // Function to apply playback speed
 function applyPlaybackSpeed(video) {
     if (video) {
-        video.playbackRate = playbackSpeed;
-        console.log(`⚡ Playback speed set to ${playbackSpeed}x for`, video);
+        let speed = playbackSpeed;
+        const type = video.dataset.eventType || "";
+        for (const rule of customSpeedRules) {
+            if (rule.eventType === type) {
+                speed = parseFloat(rule.speed);
+                break;
+            }
+        }
+        video.playbackRate = speed;
+        console.log(`⚡ Playback speed set to ${speed}x for`, type, video);
     }
+}
+
+// Function to handle smart skip
+function cancelNoVideoTimer() {
+    if (noVideoTimerId) {
+        clearTimeout(noVideoTimerId);
+        noVideoTimerId = null;
+        console.log("⏹️ No-video timer canceled");
+    }
+}
+
+function startNoVideoTimer(info) {
+    if (!smartSkipEnabled || noVideoSkipDelay <= 0) return;
+    cancelNoVideoTimer();
+    const { eventType, isLastCell } = info || {};
+    console.log(`⏩ No video playback detected for ${eventType}; will skip in ${noVideoSkipDelay}s`);
+    noVideoTimerId = setTimeout(() => {
+        console.log("⏭️ Skipping due to no video playback");
+        let key = pressKey;
+        if (autoPressNext && isLastCell) {
+            key = "ArrowRight";
+        }
+        pressKeyEvent(key);
+    }, noVideoSkipDelay * 1000);
 }
 
 // Function to remove Eye Tracker canvas whenever a video is detected
@@ -136,18 +183,28 @@ function monitorVideos() {
 
     if (videos.length === 0) {
         console.warn("⚠️ No target videos found.");
+        const info = saveEventData(null);
+        if (info && info.eventType) {
+            startNoVideoTimer(info);
+        }
         return;
     }
 
+    let firstInfo = null;
+    let playing = false;
     videos.forEach(video => {
         if (!video.dataset.listenerAdded) {
             console.log("🎥 Target video detected:", video);
 
             // Log event details based on video type
-            let isLastCell = saveEventData(video);
+            let info = saveEventData(video);
+            let isLastCell = info.isLastCell;
+            if (!firstInfo) firstInfo = info;
+            if (!video.paused) playing = true;
 
             // Apply the stored playback speed immediately
             applyPlaybackSpeed(video);
+            cancelNoVideoTimer();
 
             // If Remove Eye Tracker is enabled, check and remove it every time a video is detected
             if (removeEyeTracker) {
@@ -157,34 +214,40 @@ function monitorVideos() {
             video.addEventListener("play", () => {
                 console.log("✅ Video playing detected");
                 applyPlaybackSpeed(video);
+                cancelNoVideoTimer();
             });
 
             video.addEventListener("ended", () => {
                 if (isEnabled) {
                     console.log("🎬 Video ended.");
 
-                    // Always press the Down Arrow first
-                    console.log("⬇️ Pressing Down Arrow immediately.");
-                    pressKeyEvent("ArrowDown");
+                    console.log(`⏳ Buffering for ${keyDelay}s before skipping...`);
+                    setTimeout(() => {
+                        console.log("⬇️ Pressing Down Arrow after delay.");
+                        pressKeyEvent("ArrowDown");
 
-                    // Only press Right Arrow if "Auto Press Next List" is enabled and it's the last cell
-                    chrome.storage.sync.get("autoPressNext", function (data) {
-                        if (data.autoPressNext && isLastCell) {
-                            console.log("⏳ Waiting 2 seconds before pressing Right Arrow...");
+                        if (autoPressNext && isLastCell) {
+                            console.log(`⏳ Waiting another ${keyDelay}s before pressing Right Arrow...`);
                             setTimeout(() => {
                                 console.log("➡️ Pressing Right Arrow after delay.");
                                 pressKeyEvent("ArrowRight");
-                            }, 2000);
-                        } else if (!data.autoPressNext) {
+                            }, keyDelay * 1000);
+                        } else if (!autoPressNext) {
                             console.log("🚫 Auto Press Next List is disabled. Right Arrow will not be pressed.");
                         }
-                    });
+                    }, keyDelay * 1000);
                 }
             }, { once: true });
 
             video.dataset.listenerAdded = "true";
         }
     });
+
+    if (!playing && firstInfo && firstInfo.eventType) {
+        startNoVideoTimer(firstInfo);
+    } else if (playing) {
+        cancelNoVideoTimer();
+    }
 }
 
 
@@ -237,17 +300,46 @@ chrome.runtime.onMessage.addListener((request) => {
         pressKey = request.pressKey;
         console.log("🔑 Key press updated to: " + pressKey);
     }
+
+    if (request.customSpeedRules) {
+        customSpeedRules = request.customSpeedRules;
+        console.log("⚡ Custom speed rules updated:", customSpeedRules);
+        let videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+        videos.forEach(video => applyPlaybackSpeed(video));
+    }
+
+    if (request.skipDelay !== undefined) {
+        noVideoSkipDelay = parseFloat(request.skipDelay) || 0;
+        console.log("⏩ No-video skip delay updated:", noVideoSkipDelay);
+    }
+
+    if (request.keyDelay !== undefined) {
+        keyDelay = parseFloat(request.keyDelay) || 0;
+        console.log("⌛ Key press delay updated:", keyDelay);
+    }
+
+    if (request.smartSkipEnabled !== undefined) {
+        smartSkipEnabled = request.smartSkipEnabled;
+        console.log("⏩ Smart Skip enabled:", smartSkipEnabled);
+        if (!smartSkipEnabled) {
+            cancelNoVideoTimer();
+        }
+    }
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled", "keyDelay"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
     autoPressNext = data.autoPressNext ?? false; // Default to disabled
     removeEyeTracker = data.removeEyeTracker ?? false; // Default to disabled
+    customSpeedRules = data.customSpeedRules || [];
+    noVideoSkipDelay = parseFloat(data.skipDelay) || 0;
+    smartSkipEnabled = data.smartSkipEnabled ?? false;
+    keyDelay = parseFloat(data.keyDelay) || 2;
 
-    console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker);
+    console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker + ", Key Delay=" + keyDelay + "s");
 
     if (isEnabled) {
         monitorVideos();
