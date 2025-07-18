@@ -221,22 +221,21 @@ function monitorVideos() {
                 if (isEnabled) {
                     console.log("🎬 Video ended.");
 
-                    // Always press the Down Arrow first
-                    console.log("⬇️ Pressing Down Arrow immediately.");
-                    pressKeyEvent("ArrowDown");
+                    console.log(`⏳ Buffering for ${keyDelay}s before skipping...`);
+                    setTimeout(() => {
+                        console.log("⬇️ Pressing Down Arrow after delay.");
+                        pressKeyEvent("ArrowDown");
 
-                    // Only press Right Arrow if "Auto Press Next List" is enabled and it's the last cell
-                    chrome.storage.sync.get("autoPressNext", function (data) {
-                        if (data.autoPressNext && isLastCell) {
-                            console.log(`⏳ Waiting ${keyDelay}s before pressing Right Arrow...`);
+                        if (autoPressNext && isLastCell) {
+                            console.log(`⏳ Waiting another ${keyDelay}s before pressing Right Arrow...`);
                             setTimeout(() => {
                                 console.log("➡️ Pressing Right Arrow after delay.");
                                 pressKeyEvent("ArrowRight");
                             }, keyDelay * 1000);
-                        } else if (!data.autoPressNext) {
+                        } else if (!autoPressNext) {
                             console.log("🚫 Auto Press Next List is disabled. Right Arrow will not be pressed.");
                         }
-                    });
+                    }, keyDelay * 1000);
                 }
             }, { once: true });
 
