@@ -3,6 +3,8 @@ let playbackSpeed = 1.0; // Default to 1x speed
 let pressKey = "ArrowRight"; // Default key
 let autoPressNext = false; // Default to disabled
 let removeEyeTracker = false; // Default to disabled
+let customSpeedRules = [];
+let smartSkipRules = [];
 
 // Function to store event data from the selected row
 function saveEventData(video) {
@@ -63,6 +65,9 @@ function saveEventData(video) {
 
     let eventData = { eventType, truckNumber, timestamp, pageUrl, isLastCell };
 
+    // store event type on the video for speed rules
+    video.dataset.eventType = eventType;
+
     chrome.storage.local.get("eventLogs", function (data) {
         let logs = data.eventLogs || [];
         logs.push(eventData);
@@ -111,8 +116,30 @@ function pressKeyEvent(key) {
 // Function to apply playback speed
 function applyPlaybackSpeed(video) {
     if (video) {
-        video.playbackRate = playbackSpeed;
-        console.log(`⚡ Playback speed set to ${playbackSpeed}x for`, video);
+        let speed = playbackSpeed;
+        const type = video.dataset.eventType || "";
+        for (const rule of customSpeedRules) {
+            if (rule.eventType === type) {
+                speed = parseFloat(rule.speed);
+                break;
+            }
+        }
+        video.playbackRate = speed;
+        console.log(`⚡ Playback speed set to ${speed}x for`, type, video);
+    }
+}
+
+// Function to handle smart skip
+function applySmartSkip(eventType) {
+    for (const rule of smartSkipRules) {
+        if (rule.eventType === eventType) {
+            const delay = parseFloat(rule.seconds);
+            if (!isNaN(delay)) {
+                console.log(`⏩ Smart skip for ${eventType} in ${delay}s`);
+                setTimeout(() => pressKeyEvent("ArrowRight"), delay * 1000);
+            }
+            break;
+        }
     }
 }
 
@@ -148,6 +175,7 @@ function monitorVideos() {
 
             // Apply the stored playback speed immediately
             applyPlaybackSpeed(video);
+            applySmartSkip(video.dataset.eventType || "");
 
             // If Remove Eye Tracker is enabled, check and remove it every time a video is detected
             if (removeEyeTracker) {
@@ -237,15 +265,29 @@ chrome.runtime.onMessage.addListener((request) => {
         pressKey = request.pressKey;
         console.log("🔑 Key press updated to: " + pressKey);
     }
+
+    if (request.customSpeedRules) {
+        customSpeedRules = request.customSpeedRules;
+        console.log("⚡ Custom speed rules updated:", customSpeedRules);
+        let videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+        videos.forEach(video => applyPlaybackSpeed(video));
+    }
+
+    if (request.smartSkipRules) {
+        smartSkipRules = request.smartSkipRules;
+        console.log("⏩ Smart skip rules updated:", smartSkipRules);
+    }
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "smartSkipRules"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
     autoPressNext = data.autoPressNext ?? false; // Default to disabled
     removeEyeTracker = data.removeEyeTracker ?? false; // Default to disabled
+    customSpeedRules = data.customSpeedRules || [];
+    smartSkipRules = data.smartSkipRules || [];
 
     console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker);
 

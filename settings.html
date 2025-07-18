@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #222;
+            color: #fff;
+            padding: 20px;
+        }
+        h2 {
+            margin-top: 0;
+        }
+        .rule {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        select {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 5px;
+        }
+        button {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #addRule {
+            background-color: #28a745;
+            color: #fff;
+        }
+        .remove {
+            background-color: #dc3545;
+            color: #fff;
+        }
+        input[type="number"] {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 5px;
+            border-radius: 5px;
+            width: 60px;
+        }
+        #saveSettings {
+            background-color: #007bff;
+            color: #fff;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Settings</h2>
+    <h3>Custom Speed</h3>
+    <div id="rulesContainer"></div>
+    <button id="addRule">+</button>
+    <br>
+    <h3>Smart Skip</h3>
+    <div id="skipContainer"></div>
+    <button id="addSkip">+</button>
+    <br>
+    <button id="saveSettings">Save</button>
+    <script src="settings.js"></script>
+</body>
+</html>
