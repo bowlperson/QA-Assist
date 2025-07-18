@@ -1,11 +1,12 @@
 let isEnabled = false;
 let playbackSpeed = 1.0; // Default to 1x speed
-let pressKey = "ArrowRight"; // Default key
+let pressKey = "ArrowDown"; // Default key is Down Arrow
 let autoPressNext = false; // Default to disabled
 let removeEyeTracker = false; // Default to disabled
 let customSpeedRules = [];
 let noVideoSkipDelay = 0;
 let noVideoTimerId = null;
+let smartSkipEnabled = false;
 
 // Function to store event data from the selected row
 function saveEventData(video) {
@@ -146,13 +147,18 @@ function cancelNoVideoTimer() {
     }
 }
 
-function startNoVideoTimer(eventType) {
-    if (noVideoSkipDelay <= 0) return;
+function startNoVideoTimer(info) {
+    if (!smartSkipEnabled || noVideoSkipDelay <= 0) return;
     cancelNoVideoTimer();
+    const { eventType, isLastCell } = info || {};
     console.log(`⏩ No video playback detected for ${eventType}; will skip in ${noVideoSkipDelay}s`);
     noVideoTimerId = setTimeout(() => {
         console.log("⏭️ Skipping due to no video playback");
-        pressKeyEvent("ArrowRight");
+        let key = pressKey;
+        if (autoPressNext && isLastCell) {
+            key = "ArrowRight";
+        }
+        pressKeyEvent(key);
     }, noVideoSkipDelay * 1000);
 }
 
@@ -178,7 +184,7 @@ function monitorVideos() {
         console.warn("⚠️ No target videos found.");
         const info = saveEventData(null);
         if (info && info.eventType) {
-            startNoVideoTimer(info.eventType);
+            startNoVideoTimer(info);
         }
         return;
     }
@@ -238,7 +244,7 @@ function monitorVideos() {
     });
 
     if (!playing && firstInfo && firstInfo.eventType) {
-        startNoVideoTimer(firstInfo.eventType);
+        startNoVideoTimer(firstInfo);
     } else if (playing) {
         cancelNoVideoTimer();
     }
@@ -306,10 +312,18 @@ chrome.runtime.onMessage.addListener((request) => {
         noVideoSkipDelay = parseFloat(request.skipDelay) || 0;
         console.log("⏩ No-video skip delay updated:", noVideoSkipDelay);
     }
+
+    if (request.smartSkipEnabled !== undefined) {
+        smartSkipEnabled = request.smartSkipEnabled;
+        console.log("⏩ Smart Skip enabled:", smartSkipEnabled);
+        if (!smartSkipEnabled) {
+            cancelNoVideoTimer();
+        }
+    }
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
@@ -317,6 +331,7 @@ chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext"
     removeEyeTracker = data.removeEyeTracker ?? false; // Default to disabled
     customSpeedRules = data.customSpeedRules || [];
     noVideoSkipDelay = parseFloat(data.skipDelay) || 0;
+    smartSkipEnabled = data.smartSkipEnabled ?? false;
 
     console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker);
 

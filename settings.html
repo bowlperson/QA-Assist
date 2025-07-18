@@ -46,6 +46,10 @@
             border-radius: 5px;
             width: 60px;
         }
+        .disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
         #saveSettings {
             background-color: #007bff;
             color: #fff;
@@ -61,6 +65,10 @@
     <br>
     <h3>Smart Skip</h3>
     <label>
+        <input id="smartSkipToggle" type="checkbox"> Enable Smart Skip
+    </label>
+    <br>
+    <label id="skipContainer">
         If No Video Playback is detected then skip after
         <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
     </label>

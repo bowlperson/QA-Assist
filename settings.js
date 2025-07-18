@@ -12,7 +12,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const rulesContainer = document.getElementById('rulesContainer');
     const addRuleBtn = document.getElementById('addRule');
     const skipDelayInput = document.getElementById('skipDelay');
+    const smartSkipToggle = document.getElementById('smartSkipToggle');
+    const skipContainer = document.getElementById('skipContainer');
     const saveBtn = document.getElementById('saveSettings');
+
+    function updateSkipEnabled() {
+        if (smartSkipToggle.checked) {
+            skipContainer.classList.remove('disabled');
+            skipDelayInput.disabled = false;
+        } else {
+            skipContainer.classList.add('disabled');
+            skipDelayInput.disabled = true;
+        }
+    }
 
     function createRuleRow(rule) {
         const div = document.createElement('div');
@@ -49,7 +61,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     addRuleBtn.addEventListener('click', () => createRuleRow());
 
-    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0 }, data => {
+    smartSkipToggle.addEventListener('change', updateSkipEnabled);
+
+    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false }, data => {
         const rules = data.customSpeedRules;
         if (rules.length === 0) {
             createRuleRow();
@@ -57,7 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
             rules.forEach(r => createRuleRow(r));
         }
 
+        smartSkipToggle.checked = data.smartSkipEnabled;
         skipDelayInput.value = data.skipDelay || 0;
+        updateSkipEnabled();
     });
 
     saveBtn.addEventListener('click', () => {
@@ -71,10 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (delay > 30) delay = 30;
         skipDelayInput.value = delay;
 
-        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay }, () => {
+        const enabled = smartSkipToggle.checked;
+
+        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled }, () => {
             chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
                 if (tabs[0]) {
-                    chrome.tabs.sendMessage(tabs[0].id, { customSpeedRules: rules, skipDelay: delay });
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        customSpeedRules: rules,
+                        skipDelay: enabled ? delay : 0,
+                        smartSkipEnabled: enabled
+                    });
                 }
             });
             alert('Settings saved');
