@@ -4,13 +4,19 @@ let pressKey = "ArrowRight"; // Default key
 let autoPressNext = false; // Default to disabled
 let removeEyeTracker = false; // Default to disabled
 let customSpeedRules = [];
-let smartSkipRules = [];
+let noVideoSkipDelay = 0;
+let noVideoTimerId = null;
 
 // Function to store event data from the selected row
 function saveEventData(video) {
     let allRows = document.querySelectorAll(".gvEventListItemPadding");
     let selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
-    let isHideTracking = video.closest(".videos.hide-tracking") !== null; // Check if the video is inside hide-tracking
+    let isHideTracking = false;
+    if (video) {
+        isHideTracking = video.closest(".videos.hide-tracking") !== null;
+    } else if (document.querySelector(".videos.hide-tracking .item.selected")) {
+        isHideTracking = true;
+    }
 
     let eventType = "";
     let truckNumber = ""; // Leave blank for hide-tracking
@@ -66,7 +72,9 @@ function saveEventData(video) {
     let eventData = { eventType, truckNumber, timestamp, pageUrl, isLastCell };
 
     // store event type on the video for speed rules
-    video.dataset.eventType = eventType;
+    if (video) {
+        video.dataset.eventType = eventType;
+    }
 
     chrome.storage.local.get("eventLogs", function (data) {
         let logs = data.eventLogs || [];
@@ -76,7 +84,7 @@ function saveEventData(video) {
         console.log("📌 Event logged successfully:", eventData);
     });
 
-    return isLastCell;
+    return { isLastCell, eventType };
 }
 
 
@@ -130,17 +138,22 @@ function applyPlaybackSpeed(video) {
 }
 
 // Function to handle smart skip
-function applySmartSkip(eventType) {
-    for (const rule of smartSkipRules) {
-        if (rule.eventType === eventType) {
-            const delay = parseFloat(rule.seconds);
-            if (!isNaN(delay)) {
-                console.log(`⏩ Smart skip for ${eventType} in ${delay}s`);
-                setTimeout(() => pressKeyEvent("ArrowRight"), delay * 1000);
-            }
-            break;
-        }
+function cancelNoVideoTimer() {
+    if (noVideoTimerId) {
+        clearTimeout(noVideoTimerId);
+        noVideoTimerId = null;
+        console.log("⏹️ No-video timer canceled");
     }
+}
+
+function startNoVideoTimer(eventType) {
+    if (noVideoSkipDelay <= 0) return;
+    cancelNoVideoTimer();
+    console.log(`⏩ No video playback detected for ${eventType}; will skip in ${noVideoSkipDelay}s`);
+    noVideoTimerId = setTimeout(() => {
+        console.log("⏭️ Skipping due to no video playback");
+        pressKeyEvent("ArrowRight");
+    }, noVideoSkipDelay * 1000);
 }
 
 // Function to remove Eye Tracker canvas whenever a video is detected
@@ -163,19 +176,28 @@ function monitorVideos() {
 
     if (videos.length === 0) {
         console.warn("⚠️ No target videos found.");
+        const info = saveEventData(null);
+        if (info && info.eventType) {
+            startNoVideoTimer(info.eventType);
+        }
         return;
     }
 
+    let firstInfo = null;
+    let playing = false;
     videos.forEach(video => {
         if (!video.dataset.listenerAdded) {
             console.log("🎥 Target video detected:", video);
 
             // Log event details based on video type
-            let isLastCell = saveEventData(video);
+            let info = saveEventData(video);
+            let isLastCell = info.isLastCell;
+            if (!firstInfo) firstInfo = info;
+            if (!video.paused) playing = true;
 
             // Apply the stored playback speed immediately
             applyPlaybackSpeed(video);
-            applySmartSkip(video.dataset.eventType || "");
+            cancelNoVideoTimer();
 
             // If Remove Eye Tracker is enabled, check and remove it every time a video is detected
             if (removeEyeTracker) {
@@ -185,6 +207,7 @@ function monitorVideos() {
             video.addEventListener("play", () => {
                 console.log("✅ Video playing detected");
                 applyPlaybackSpeed(video);
+                cancelNoVideoTimer();
             });
 
             video.addEventListener("ended", () => {
@@ -213,6 +236,12 @@ function monitorVideos() {
             video.dataset.listenerAdded = "true";
         }
     });
+
+    if (!playing && firstInfo && firstInfo.eventType) {
+        startNoVideoTimer(firstInfo.eventType);
+    } else if (playing) {
+        cancelNoVideoTimer();
+    }
 }
 
 
@@ -273,21 +302,21 @@ chrome.runtime.onMessage.addListener((request) => {
         videos.forEach(video => applyPlaybackSpeed(video));
     }
 
-    if (request.smartSkipRules) {
-        smartSkipRules = request.smartSkipRules;
-        console.log("⏩ Smart skip rules updated:", smartSkipRules);
+    if (request.skipDelay !== undefined) {
+        noVideoSkipDelay = parseFloat(request.skipDelay) || 0;
+        console.log("⏩ No-video skip delay updated:", noVideoSkipDelay);
     }
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "smartSkipRules"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
     autoPressNext = data.autoPressNext ?? false; // Default to disabled
     removeEyeTracker = data.removeEyeTracker ?? false; // Default to disabled
     customSpeedRules = data.customSpeedRules || [];
-    smartSkipRules = data.smartSkipRules || [];
+    noVideoSkipDelay = parseFloat(data.skipDelay) || 0;
 
     console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker);
 
