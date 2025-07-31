@@ -17,6 +17,42 @@ let lastLoopSignature = "";
 let loopCheckIntervalId = null;
 let siteRules = {};
 
+function applySiteRule() {
+    const host = location.hostname;
+    const rule = siteRules[host];
+    if (!rule) return;
+    if (rule.disabled) {
+        if (isEnabled) {
+            isEnabled = false;
+            stopLoopMonitor();
+            cancelLoopTimer();
+        }
+    }
+    if (rule.speed !== undefined) {
+        playbackSpeed = parseFloat(rule.speed) || playbackSpeed;
+        document.querySelectorAll('video').forEach(v => applyPlaybackSpeed(v));
+    }
+    if (rule.pressKey) pressKey = rule.pressKey;
+    if (rule.autoPressNext !== undefined) autoPressNext = rule.autoPressNext;
+    if (rule.removeEyeTracker !== undefined) {
+        removeEyeTracker = rule.removeEyeTracker;
+        if (removeEyeTracker) removeEyeTrackerElement();
+    }
+    if (rule.customSpeedRules) {
+        customSpeedRules = rule.customSpeedRules;
+    }
+    if (rule.skipDelay !== undefined) noVideoSkipDelay = parseFloat(rule.skipDelay) || 0;
+    if (rule.smartSkipEnabled !== undefined) smartSkipEnabled = rule.smartSkipEnabled;
+    if (rule.keyDelay !== undefined) keyDelay = parseFloat(rule.keyDelay) || 0;
+    if (rule.loopingEnabled !== undefined) {
+        loopingEnabled = rule.loopingEnabled;
+        if (loopingEnabled) startLoopMonitor(); else { stopLoopMonitor(); cancelLoopTimer(); }
+    }
+    if (rule.loopReset !== undefined) loopReset = parseFloat(rule.loopReset) || loopReset;
+    if (rule.loopHold !== undefined) loopHold = parseFloat(rule.loopHold) || loopHold;
+    if (rule.loopFollow !== undefined) loopFollow = rule.loopFollow;
+}
+
 function isAnyVideoPlaying() {
     const vids = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
     return Array.from(vids).some(v => !v.paused && !v.ended);
@@ -411,30 +447,7 @@ chrome.runtime.onMessage.addListener((request) => {
     if (request.siteRules) {
         siteRules = request.siteRules;
         console.log("🌐 Site rules updated:", siteRules);
-        const host = location.hostname;
-        if (siteRules[host]) {
-            const rule = siteRules[host];
-            if (rule.speed) {
-                playbackSpeed = parseFloat(rule.speed) || playbackSpeed;
-                document.querySelectorAll('video').forEach(v => applyPlaybackSpeed(v));
-            }
-            if (rule.disabled) {
-                if (isEnabled) {
-                    isEnabled = false;
-                    stopLoopMonitor();
-                    cancelLoopTimer();
-                }
-            } else {
-                chrome.storage.sync.get('enabled', data => {
-                    if (data.enabled) {
-                        isEnabled = true;
-                        monitorVideos();
-                        monitorForNewVideos();
-                        if (loopingEnabled) startLoopMonitor();
-                    }
-                });
-            }
-        }
+        applySiteRule();
     }
 
     if (request.skipDelay !== undefined) {
@@ -500,15 +513,7 @@ chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext"
     siteRules = data.siteRules || {};
 
     const host = location.hostname;
-    if (siteRules[host]) {
-        const rule = siteRules[host];
-        if (rule.disabled) {
-            isEnabled = false;
-        }
-        if (rule.speed) {
-            playbackSpeed = parseFloat(rule.speed) || playbackSpeed;
-        }
-    }
+    applySiteRule();
 
     console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker + ", Key Delay=" + keyDelay + "s, Looping=" + loopingEnabled + ", Host=" + host);
 

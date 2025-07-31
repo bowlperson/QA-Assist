@@ -28,14 +28,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createSiteRuleRow(rule) {
         const div = document.createElement('div');
-        div.className = 'rule';
+        div.className = 'rule site-rule';
 
         const urlInput = document.createElement('input');
         urlInput.type = 'text';
         urlInput.placeholder = 'example.com';
         urlInput.value = rule?.url || '';
+        urlInput.className = 'url';
+
+        const disableCheck = document.createElement('input');
+        disableCheck.type = 'checkbox';
+        disableCheck.checked = rule?.disabled || false;
+        disableCheck.className = 'disabled';
 
         const speedSelect = document.createElement('select');
+        speedSelect.className = 'speed';
         speeds.forEach(sp => {
             const opt = document.createElement('option');
             opt.value = sp;
@@ -44,19 +51,87 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         speedSelect.value = rule?.speed || speeds[0];
 
-        const disableCheck = document.createElement('input');
-        disableCheck.type = 'checkbox';
-        disableCheck.checked = rule?.disabled || false;
+        const keySelect = document.createElement('select');
+        keySelect.className = 'key';
+        [{ val: 'ArrowRight', text: 'OAS' }, { val: 'ArrowDown', text: 'OpWeb' }].forEach(optInfo => {
+            const opt = document.createElement('option');
+            opt.value = optInfo.val;
+            opt.textContent = optInfo.text;
+            keySelect.appendChild(opt);
+        });
+        keySelect.value = rule?.pressKey || 'ArrowDown';
+
+        const autoNext = document.createElement('input');
+        autoNext.type = 'checkbox';
+        autoNext.className = 'autoNext';
+        autoNext.checked = rule?.autoPressNext || false;
+
+        const removeEye = document.createElement('input');
+        removeEye.type = 'checkbox';
+        removeEye.className = 'removeEye';
+        removeEye.checked = rule?.removeEyeTracker || false;
+
+        const smartSkip = document.createElement('input');
+        smartSkip.type = 'checkbox';
+        smartSkip.className = 'smartSkip';
+        smartSkip.checked = rule?.smartSkipEnabled || false;
+
+        const skipDelay = document.createElement('input');
+        skipDelay.type = 'number';
+        skipDelay.min = '0';
+        skipDelay.max = '30';
+        skipDelay.className = 'skipDelay';
+        skipDelay.value = rule?.skipDelay ?? 0;
+
+        const keyDelaySite = document.createElement('input');
+        keyDelaySite.type = 'number';
+        keyDelaySite.min = '0';
+        keyDelaySite.className = 'keyDelay';
+        keyDelaySite.value = rule?.keyDelay ?? 2;
+
+        const loopToggleSite = document.createElement('input');
+        loopToggleSite.type = 'checkbox';
+        loopToggleSite.className = 'loopToggle';
+        loopToggleSite.checked = rule?.loopingEnabled || false;
+
+        const loopResetSite = document.createElement('input');
+        loopResetSite.type = 'number';
+        loopResetSite.min = '0';
+        loopResetSite.className = 'loopReset';
+        loopResetSite.value = rule?.loopReset ?? 10;
+
+        const loopHoldSite = document.createElement('input');
+        loopHoldSite.type = 'number';
+        loopHoldSite.min = '0';
+        loopHoldSite.className = 'loopHold';
+        loopHoldSite.value = rule?.loopHold ?? 5;
+
+        const loopFollowSite = document.createElement('input');
+        loopFollowSite.type = 'checkbox';
+        loopFollowSite.className = 'loopFollow';
+        loopFollowSite.checked = rule?.loopFollow ?? true;
 
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '-';
         removeBtn.className = 'remove';
         removeBtn.addEventListener('click', () => div.remove());
 
-        div.appendChild(urlInput);
-        div.appendChild(speedSelect);
-        div.appendChild(disableCheck);
-        div.appendChild(removeBtn);
+        div.append(
+            urlInput,
+            disableCheck,
+            speedSelect,
+            keySelect,
+            autoNext,
+            removeEye,
+            smartSkip,
+            skipDelay,
+            keyDelaySite,
+            loopToggleSite,
+            loopResetSite,
+            loopHoldSite,
+            loopFollowSite,
+            removeBtn
+        );
         siteRulesContainer.appendChild(div);
     }
 
@@ -137,13 +212,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loopResetInput.value = data.loopReset ?? 10;
         loopHoldInput.value = data.loopHold ?? 5;
         loopFollowToggle.checked = data.loopFollow ?? true;
-        if (Object.keys(data.siteRules).length === 0) {
-            createSiteRuleRow();
-        } else {
-            Object.entries(data.siteRules).forEach(([url, cfg]) => {
-                createSiteRuleRow({ url, speed: cfg.speed, disabled: cfg.disabled });
-            });
-        }
+        Object.entries(data.siteRules).forEach(([url, cfg]) => {
+            createSiteRuleRow(Object.assign({ url }, cfg));
+        });
         updateSkipEnabled();
         updateLoopEnabled();
     });
@@ -167,12 +238,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const loopingEnabled = loopToggle.checked;
 
         const siteRules = {};
-        siteRulesContainer.querySelectorAll('.rule').forEach(div => {
-            const [urlInput, speedSelect, disableCheck] = div.querySelectorAll('input, select');
-            const url = urlInput.value.trim();
-            if (url) {
-                siteRules[url] = { speed: speedSelect.value, disabled: disableCheck.checked };
-            }
+        siteRulesContainer.querySelectorAll('.site-rule').forEach(div => {
+            const url = div.querySelector('.url').value.trim();
+            if (!url) return;
+            const cfg = {
+                disabled: div.querySelector('.disabled').checked,
+                speed: div.querySelector('.speed').value,
+                pressKey: div.querySelector('.key').value,
+                autoPressNext: div.querySelector('.autoNext').checked,
+                removeEyeTracker: div.querySelector('.removeEye').checked,
+                smartSkipEnabled: div.querySelector('.smartSkip').checked,
+                skipDelay: parseFloat(div.querySelector('.skipDelay').value) || 0,
+                keyDelay: parseFloat(div.querySelector('.keyDelay').value) || 0,
+                loopingEnabled: div.querySelector('.loopToggle').checked,
+                loopReset: parseFloat(div.querySelector('.loopReset').value) || 10,
+                loopHold: parseFloat(div.querySelector('.loopHold').value) || 5,
+                loopFollow: div.querySelector('.loopFollow').checked
+            };
+            siteRules[url] = cfg;
         });
 
         chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules }, () => {
