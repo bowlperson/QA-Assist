@@ -170,11 +170,28 @@ function cancelLoopTimer() {
 function holdKey(key, seconds, callback) {
     const element = document.activeElement || document;
     const code = key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40;
-    const down = new KeyboardEvent("keydown", { key, code: key, keyCode: code, which: code, bubbles: true, cancelable: true });
+
+    const createDown = (repeat = false) => new KeyboardEvent("keydown", {
+        key,
+        code: key,
+        keyCode: code,
+        which: code,
+        bubbles: true,
+        cancelable: true,
+        repeat
+    });
+
     const up = new KeyboardEvent("keyup", { key, code: key, keyCode: code, which: code, bubbles: true, cancelable: true });
-    element.dispatchEvent(down);
+
+    element.dispatchEvent(createDown(false));
     console.log(`⏮️ Holding ${key} for ${seconds}s`);
+
+    const intervalId = setInterval(() => {
+        element.dispatchEvent(createDown(true));
+    }, 100);
+
     setTimeout(() => {
+        clearInterval(intervalId);
         element.dispatchEvent(up);
         console.log(`▶️ Released ${key}`);
         if (callback) callback();
