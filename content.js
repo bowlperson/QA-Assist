@@ -16,6 +16,11 @@ let loopTimerId = null;
 let lastLoopSignature = "";
 let loopCheckIntervalId = null;
 
+function isAnyVideoPlaying() {
+    const vids = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+    return Array.from(vids).some(v => !v.paused && !v.ended);
+}
+
 function extractEventData(video) {
     let allRows = document.querySelectorAll(".gvEventListItemPadding");
     let selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
@@ -216,8 +221,8 @@ function scheduleLoop() {
     loopTimerId = setTimeout(triggerLoop, loopReset * 1000);
 }
 
-function checkLoop(info) {
-    if (!loopingEnabled || !info) {
+function checkLoop(info, playing) {
+    if (!loopingEnabled || !info || !info.isLastCell || playing) {
         cancelLoopTimer();
         lastLoopSignature = "";
         return;
@@ -233,7 +238,8 @@ function startLoopMonitor() {
     if (loopCheckIntervalId) return;
     loopCheckIntervalId = setInterval(() => {
         const info = extractEventData(null);
-        checkLoop(info);
+        const playing = isAnyVideoPlaying();
+        checkLoop(info, playing);
     }, 1000);
 }
 
@@ -268,7 +274,7 @@ function monitorVideos() {
         if (info && info.eventType) {
             startNoVideoTimer(info);
             if (info.isLastCell) {
-                checkLoop(info);
+                checkLoop(info, false);
             }
         }
         return;
@@ -331,7 +337,7 @@ function monitorVideos() {
     if (!playing && firstInfo && firstInfo.eventType) {
         startNoVideoTimer(firstInfo);
         if (firstInfo.isLastCell) {
-            checkLoop(firstInfo);
+            checkLoop(firstInfo, false);
         }
     } else if (playing) {
         cancelNoVideoTimer();
