@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UFC-8">
+<meta charset="UTF-8">
     <title>Event Log</title>
     <style>
         body {
@@ -25,6 +25,23 @@
         .button-group {
             display: flex;
             gap: 10px;
+        }
+
+        #openSettings {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 8px 12px;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+
+        #openSettings:hover {
+            background-color: #3399ff;
         }
 
         #clearLogs,
@@ -114,10 +131,10 @@
             color: #ccc;
             font-size: 12px;
         }
-    </style>
+</style>
 </head>
-<meta charset="UFC-8">
 <body>
+    <button id="openSettings" title="Settings">Settings</button>
     <!-- Bookmarks Section -->
     <div class="section-header">
         <h2>Bookmarked Events <span id="bookmarkCount">(0)</span></h2>
