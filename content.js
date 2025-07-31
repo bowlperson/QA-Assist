@@ -13,9 +13,10 @@ let loopReset = 10;
 let loopHold = 5;
 let loopFollow = true;
 let loopTimerId = null;
+let lastLoopSignature = "";
+let loopCheckIntervalId = null;
 
-// Function to store event data from the selected row
-function saveEventData(video) {
+function extractEventData(video) {
     let allRows = document.querySelectorAll(".gvEventListItemPadding");
     let selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
     let isHideTracking = false;
@@ -26,57 +27,46 @@ function saveEventData(video) {
     }
 
     let eventType = "";
-    let truckNumber = ""; // Leave blank for hide-tracking
+    let truckNumber = "";
     let timestamp = "";
-    let pageUrl = window.location.href;
     let isLastCell = false;
 
     if (isHideTracking) {
-        // Get the selected container within hide-tracking
-        let selectedItem = document.querySelector(".item.selected");
-
+        let selectedItem = document.querySelector(".videos.hide-tracking .item.selected");
         if (selectedItem) {
             let eventTypeElement = selectedItem.querySelector("label.field-event_type");
             let timestampElement = selectedItem.querySelector("label.field-created_at");
-
-            if (eventTypeElement) {
-                eventType = eventTypeElement.textContent.trim();
-            }
-            if (timestampElement) {
-                timestamp = timestampElement.textContent.trim();
-            }
-
-            console.log("📌 Logging event from hide-tracking video (selected item):", { eventType, timestamp, pageUrl });
-        } else {
-            console.warn("⚠️ No selected item found for hide-tracking video.");
+            if (eventTypeElement) eventType = eventTypeElement.textContent.trim();
+            if (timestampElement) timestamp = timestampElement.textContent.trim();
         }
     } else if (selectedRow) {
-        // Normal gvVideo.controllerless logging
         isLastCell = selectedRow === allRows[allRows.length - 1];
-
         let eventTypeElement = selectedRow.querySelector(".gvEventListItemRight[style*='color']");
         let truckNumberElements = selectedRow.querySelectorAll(".gvEventListItemLeft");
         let timestampElement = selectedRow.querySelector(".gvEventListItemRight[style*='width: 90%']");
-
         let truckNumberElement = (truckNumberElements.length > 1) ? truckNumberElements[1] : null;
-
-        if (eventTypeElement) {
-            eventType = eventTypeElement.textContent.trim();
-        }
-        if (truckNumberElement) {
-            truckNumber = truckNumberElement.textContent.trim();
-        }
-        if (timestampElement) {
-            timestamp = timestampElement.textContent.trim();
-        }
-
-        console.log("📌 Logging event from normal video:", { eventType, truckNumber, timestamp, pageUrl, isLastCell });
+        if (eventTypeElement) eventType = eventTypeElement.textContent.trim();
+        if (truckNumberElement) truckNumber = truckNumberElement.textContent.trim();
+        if (timestampElement) timestamp = timestampElement.textContent.trim();
     } else {
+        return null;
+    }
+
+    return { eventType, truckNumber, timestamp, isLastCell };
+}
+
+// Function to store event data from the selected row
+function saveEventData(video) {
+    let info = extractEventData(video);
+    if (!info) {
         console.warn("⚠️ No selected row found for event logging.");
         return false;
     }
-
+    let { eventType, truckNumber, timestamp, isLastCell } = info;
+    let pageUrl = window.location.href;
     let eventData = { eventType, truckNumber, timestamp, pageUrl, isLastCell };
+
+    console.log("📌 Logging event:", eventData);
 
     // store event type on the video for speed rules
     if (video) {
@@ -103,8 +93,8 @@ function pressKeyEvent(key) {
     let eventDown = new KeyboardEvent("keydown", {
         key: key,
         code: key,
-        keyCode: key === "ArrowRight" ? 39 : 40,
-        which: key === "ArrowRight" ? 39 : 40,
+        keyCode: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
+        which: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
         bubbles: true,
         cancelable: true
     });
@@ -112,8 +102,8 @@ function pressKeyEvent(key) {
     let eventUp = new KeyboardEvent("keyup", {
         key: key,
         code: key,
-        keyCode: key === "ArrowRight" ? 39 : 40,
-        which: key === "ArrowRight" ? 39 : 40,
+        keyCode: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
+        which: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
         bubbles: true,
         cancelable: true
     });
@@ -179,7 +169,7 @@ function cancelLoopTimer() {
 
 function holdKey(key, seconds, callback) {
     const element = document.activeElement || document;
-    const code = key === "ArrowLeft" ? 37 : key === "ArrowRight" ? 39 : 40;
+    const code = key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40;
     const down = new KeyboardEvent("keydown", { key, code: key, keyCode: code, which: code, bubbles: true, cancelable: true });
     const up = new KeyboardEvent("keyup", { key, code: key, keyCode: code, which: code, bubbles: true, cancelable: true });
     element.dispatchEvent(down);
@@ -191,20 +181,50 @@ function holdKey(key, seconds, callback) {
     }, seconds * 1000);
 }
 
-function startLoopTimer() {
+function triggerLoop() {
+    holdKey("ArrowLeft", loopHold, () => {
+        if (loopFollow) {
+            pressKeyEvent("ArrowDown");
+            setTimeout(() => {
+                holdKey("ArrowUp", loopHold);
+            }, 500);
+        }
+    });
+}
+
+function scheduleLoop() {
     if (!loopingEnabled || loopReset <= 0) return;
     cancelLoopTimer();
-    console.log(`🔁 Looping in ${loopReset}s if no video plays...`);
-    loopTimerId = setTimeout(() => {
-        holdKey("ArrowLeft", loopHold, () => {
-            if (loopFollow) {
-                pressKeyEvent("ArrowDown");
-                setTimeout(() => {
-                    pressKeyEvent("ArrowUp");
-                }, 1000);
-            }
-        });
-    }, loopReset * 1000);
+    console.log(`🔁 Loop scheduled in ${loopReset}s if event unchanged...`);
+    loopTimerId = setTimeout(triggerLoop, loopReset * 1000);
+}
+
+function checkLoop(info) {
+    if (!loopingEnabled || !info) {
+        cancelLoopTimer();
+        lastLoopSignature = "";
+        return;
+    }
+    const sig = `${info.eventType}-${info.timestamp}`;
+    if (sig !== lastLoopSignature) {
+        lastLoopSignature = sig;
+        scheduleLoop();
+    }
+}
+
+function startLoopMonitor() {
+    if (loopCheckIntervalId) return;
+    loopCheckIntervalId = setInterval(() => {
+        const info = extractEventData(null);
+        checkLoop(info);
+    }, 1000);
+}
+
+function stopLoopMonitor() {
+    if (loopCheckIntervalId) {
+        clearInterval(loopCheckIntervalId);
+        loopCheckIntervalId = null;
+    }
 }
 
 // Function to remove Eye Tracker canvas whenever a video is detected
@@ -231,7 +251,7 @@ function monitorVideos() {
         if (info && info.eventType) {
             startNoVideoTimer(info);
             if (info.isLastCell) {
-                startLoopTimer();
+                checkLoop(info);
             }
         }
         return;
@@ -294,7 +314,7 @@ function monitorVideos() {
     if (!playing && firstInfo && firstInfo.eventType) {
         startNoVideoTimer(firstInfo);
         if (firstInfo.isLastCell) {
-            startLoopTimer();
+            checkLoop(firstInfo);
         }
     } else if (playing) {
         cancelNoVideoTimer();
@@ -323,6 +343,10 @@ chrome.runtime.onMessage.addListener((request) => {
         if (isEnabled) {
             monitorVideos();
             monitorForNewVideos();
+            if (loopingEnabled) startLoopMonitor();
+        } else {
+            stopLoopMonitor();
+            cancelLoopTimer();
         }
     }
 
@@ -375,12 +399,16 @@ chrome.runtime.onMessage.addListener((request) => {
         console.log("🔁 Looping mode:", loopingEnabled);
         if (!loopingEnabled) {
             cancelLoopTimer();
+            stopLoopMonitor();
+        } else {
+            startLoopMonitor();
         }
     }
 
     if (request.loopReset !== undefined) {
         loopReset = parseFloat(request.loopReset) || 10;
         console.log("🔄 Loop reset seconds:", loopReset);
+        if (loopingEnabled && lastLoopSignature) scheduleLoop();
     }
 
     if (request.loopHold !== undefined) {
@@ -422,6 +450,7 @@ chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext"
     if (isEnabled) {
         monitorVideos();
         monitorForNewVideos();
+        if (loopingEnabled) startLoopMonitor();
     }
 
     if (removeEyeTracker) {
