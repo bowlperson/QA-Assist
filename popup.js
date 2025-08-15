@@ -7,6 +7,23 @@ document.addEventListener("DOMContentLoaded", function () {
     let autoPressNextToggle = document.getElementById("autoPressNext");
     let removeEyeTrackerToggle = document.getElementById("removeEyeTracker");
     let viewLogsButton = document.getElementById("viewLogs");
+    let openSettingsButton = document.getElementById("openSettings");
+    let disableSiteToggle = document.getElementById("disableSite");
+
+    let currentHost = "";
+    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+        if (tabs[0]) {
+            try {
+                currentHost = new URL(tabs[0].url).hostname;
+            } catch {}
+            chrome.storage.sync.get(["disabledSites", "siteRules"], data => {
+                const rules = data.siteRules || {};
+                const hostRule = rules[currentHost];
+                disableSiteToggle.checked = hostRule ? hostRule.disabled : false;
+                updateStatus(!(hostRule && hostRule.disabled) && (data.enabled ?? false));
+            });
+        }
+    });
     
     // Load stored settings
     chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker"], function (data) {
@@ -99,8 +116,30 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
+    disableSiteToggle.addEventListener("change", function () {
+        const disabled = disableSiteToggle.checked;
+        chrome.storage.sync.get({ siteRules: {} }, data => {
+            const rules = data.siteRules;
+            if (!rules[currentHost]) rules[currentHost] = {};
+            rules[currentHost].disabled = disabled;
+            chrome.storage.sync.set({ siteRules: rules }, () => {
+                updateStatus(toggle.checked && !disabled);
+                chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+                    if (tabs[0]) {
+                        chrome.tabs.sendMessage(tabs[0].id, { siteRules: rules });
+                    }
+                });
+            });
+        });
+    });
+
     // Open log.html when clicking "View Logs" button
     viewLogsButton.addEventListener("click", function () {
         chrome.tabs.create({ url: chrome.runtime.getURL("log.html") });
+    });
+
+    // Open settings.html when clicking "Advanced Settings" button
+    openSettingsButton.addEventListener("click", function () {
+        chrome.tabs.create({ url: chrome.runtime.getURL("settings.html") });
     });
 });
