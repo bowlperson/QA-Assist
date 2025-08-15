@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createSiteRuleRow(rule) {
         const div = document.createElement('div');
-        div.className = 'rule site-rule';
+        div.className = 'site-rule';
 
         const urlInput = document.createElement('input');
         urlInput.type = 'text';
@@ -36,10 +36,18 @@ document.addEventListener('DOMContentLoaded', () => {
         urlInput.value = rule?.url || '';
         urlInput.className = 'url';
 
+        const urlLabel = document.createElement('label');
+        urlLabel.textContent = 'URL ';
+        urlLabel.appendChild(urlInput);
+
         const disableCheck = document.createElement('input');
         disableCheck.type = 'checkbox';
         disableCheck.checked = rule?.disabled || false;
         disableCheck.className = 'disabled';
+
+        const disableLabel = document.createElement('label');
+        disableLabel.appendChild(disableCheck);
+        disableLabel.append(' Disable for this site');
 
         const speedSelect = document.createElement('select');
         speedSelect.className = 'speed';
@@ -51,6 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         speedSelect.value = rule?.speed || speeds[0];
 
+        const speedLabel = document.createElement('label');
+        speedLabel.textContent = 'Speed ';
+        speedLabel.appendChild(speedSelect);
+
         const keySelect = document.createElement('select');
         keySelect.className = 'key';
         [{ val: 'ArrowRight', text: 'OAS' }, { val: 'ArrowDown', text: 'OpWeb' }].forEach(optInfo => {
@@ -61,15 +73,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         keySelect.value = rule?.pressKey || 'ArrowDown';
 
+        const keyLabel = document.createElement('label');
+        keyLabel.textContent = 'Key ';
+        keyLabel.appendChild(keySelect);
+
         const autoNext = document.createElement('input');
         autoNext.type = 'checkbox';
         autoNext.className = 'autoNext';
         autoNext.checked = rule?.autoPressNext || false;
 
+        const autoNextLabel = document.createElement('label');
+        autoNextLabel.appendChild(autoNext);
+        autoNextLabel.append(' Auto Press Next');
+
         const removeEye = document.createElement('input');
         removeEye.type = 'checkbox';
         removeEye.className = 'removeEye';
         removeEye.checked = rule?.removeEyeTracker || false;
+
+        const removeEyeLabel = document.createElement('label');
+        removeEyeLabel.appendChild(removeEye);
+        removeEyeLabel.append(' Remove Eye Tracker');
 
         const smartSkip = document.createElement('input');
         smartSkip.type = 'checkbox';
@@ -83,16 +107,31 @@ document.addEventListener('DOMContentLoaded', () => {
         skipDelay.className = 'skipDelay';
         skipDelay.value = rule?.skipDelay ?? 0;
 
+        const smartSkipLabel = document.createElement('label');
+        smartSkipLabel.appendChild(smartSkip);
+        smartSkipLabel.append(' Smart Skip delay ');
+        smartSkipLabel.appendChild(skipDelay);
+        smartSkipLabel.append('s');
+
         const keyDelaySite = document.createElement('input');
         keyDelaySite.type = 'number';
         keyDelaySite.min = '0';
         keyDelaySite.className = 'keyDelay';
         keyDelaySite.value = rule?.keyDelay ?? 2;
 
+        const keyDelayLabel = document.createElement('label');
+        keyDelayLabel.textContent = 'Buffer between videos ';
+        keyDelayLabel.appendChild(keyDelaySite);
+        keyDelayLabel.append('s');
+
         const loopToggleSite = document.createElement('input');
         loopToggleSite.type = 'checkbox';
         loopToggleSite.className = 'loopToggle';
         loopToggleSite.checked = rule?.loopingEnabled || false;
+
+        const loopToggleLabel = document.createElement('label');
+        loopToggleLabel.appendChild(loopToggleSite);
+        loopToggleLabel.append(' Looping Mode');
 
         const loopResetSite = document.createElement('input');
         loopResetSite.type = 'number';
@@ -100,16 +139,28 @@ document.addEventListener('DOMContentLoaded', () => {
         loopResetSite.className = 'loopReset';
         loopResetSite.value = rule?.loopReset ?? 10;
 
+        const loopResetLabel = document.createElement('label');
+        loopResetLabel.textContent = 'Seconds till "reset" ';
+        loopResetLabel.appendChild(loopResetSite);
+
         const loopHoldSite = document.createElement('input');
         loopHoldSite.type = 'number';
         loopHoldSite.min = '0';
         loopHoldSite.className = 'loopHold';
         loopHoldSite.value = rule?.loopHold ?? 5;
 
+        const loopHoldLabel = document.createElement('label');
+        loopHoldLabel.textContent = 'Seconds held ';
+        loopHoldLabel.appendChild(loopHoldSite);
+
         const loopFollowSite = document.createElement('input');
         loopFollowSite.type = 'checkbox';
         loopFollowSite.className = 'loopFollow';
         loopFollowSite.checked = rule?.loopFollow ?? true;
+
+        const loopFollowLabel = document.createElement('label');
+        loopFollowLabel.appendChild(loopFollowSite);
+        loopFollowLabel.append(' Follow up');
 
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '-';
@@ -117,19 +168,18 @@ document.addEventListener('DOMContentLoaded', () => {
         removeBtn.addEventListener('click', () => div.remove());
 
         div.append(
-            urlInput,
-            disableCheck,
-            speedSelect,
-            keySelect,
-            autoNext,
-            removeEye,
-            smartSkip,
-            skipDelay,
-            keyDelaySite,
-            loopToggleSite,
-            loopResetSite,
-            loopHoldSite,
-            loopFollowSite,
+            urlLabel,
+            disableLabel,
+            speedLabel,
+            keyLabel,
+            autoNextLabel,
+            removeEyeLabel,
+            smartSkipLabel,
+            keyDelayLabel,
+            loopToggleLabel,
+            loopResetLabel,
+            loopHoldLabel,
+            loopFollowLabel,
             removeBtn
         );
         siteRulesContainer.appendChild(div);

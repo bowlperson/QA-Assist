@@ -258,8 +258,13 @@ function scheduleLoop() {
     loopTimerId = setTimeout(triggerLoop, loopReset * 1000);
 }
 
-function checkLoop(info, playing) {
-    if (!loopingEnabled || !info || !info.isLastCell || playing) {
+function checkLoop(info) {
+    if (!loopingEnabled || !info || !info.isLastCell) {
+        cancelLoopTimer();
+        lastLoopSignature = "";
+        return;
+    }
+    if (isAnyVideoPlaying()) {
         cancelLoopTimer();
         lastLoopSignature = "";
         return;
@@ -275,8 +280,7 @@ function startLoopMonitor() {
     if (loopCheckIntervalId) return;
     loopCheckIntervalId = setInterval(() => {
         const info = extractEventData(null);
-        const playing = isAnyVideoPlaying();
-        checkLoop(info, playing);
+        checkLoop(info);
     }, 1000);
 }
 
@@ -310,9 +314,7 @@ function monitorVideos() {
         const info = saveEventData(null);
         if (info && info.eventType) {
             startNoVideoTimer(info);
-            if (info.isLastCell) {
-                checkLoop(info, false);
-            }
+            checkLoop(info);
         }
         return;
     }
@@ -373,9 +375,7 @@ function monitorVideos() {
 
     if (!playing && firstInfo && firstInfo.eventType) {
         startNoVideoTimer(firstInfo);
-        if (firstInfo.isLastCell) {
-            checkLoop(firstInfo, false);
-        }
+        checkLoop(firstInfo);
     } else if (playing) {
         cancelNoVideoTimer();
         cancelLoopTimer();
