@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const skipDelayInput = document.getElementById('skipDelay');
     const smartSkipToggle = document.getElementById('smartSkipToggle');
     const skipContainer = document.getElementById('skipContainer');
+    const simpleSkipToggle = document.getElementById('simpleSkipToggle');
+    const simpleSkipDelayInput = document.getElementById('simpleSkipDelay');
+    const simpleSkipDelayContainer = document.getElementById('simpleSkipDelayContainer');
     const keyDelayInput = document.getElementById('keyDelay');
     const loopToggle = document.getElementById('loopToggle');
     const loopResetInput = document.getElementById('loopReset');
@@ -200,6 +203,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateSimpleSkipEnabled() {
+        if (simpleSkipToggle.checked) {
+            simpleSkipDelayContainer.classList.remove('disabled');
+            simpleSkipDelayInput.disabled = false;
+        } else {
+            simpleSkipDelayContainer.classList.add('disabled');
+            simpleSkipDelayInput.disabled = true;
+        }
+    }
+
     function updateLoopEnabled() {
         const on = loopToggle.checked;
         [loopResetContainer, loopHoldContainer, loopFollowContainer].forEach(el => {
@@ -263,10 +276,11 @@ document.addEventListener('DOMContentLoaded', () => {
     addSiteRuleBtn.addEventListener('click', () => createSiteRuleRow());
 
     smartSkipToggle.addEventListener('change', updateSkipEnabled);
+    simpleSkipToggle.addEventListener('change', updateSimpleSkipEnabled);
     loopToggle.addEventListener('change', updateLoopEnabled);
     scanToggle.addEventListener('change', updateScanEnabled);
 
-    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {}, scanningEnabled: false, scanHotkey: 'Ctrl+Shift+K', scanDuration: 60 }, data => {
+    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, simpleAutoSkipEnabled: false, simpleAutoSkipDelay: 5, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {}, scanningEnabled: false, scanHotkey: 'Ctrl+Shift+K', scanDuration: 60 }, data => {
         const rules = data.customSpeedRules;
         if (rules.length === 0) {
             createRuleRow();
@@ -276,6 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         smartSkipToggle.checked = data.smartSkipEnabled;
         skipDelayInput.value = data.skipDelay || 0;
+        simpleSkipToggle.checked = data.simpleAutoSkipEnabled;
+        simpleSkipDelayInput.value = data.simpleAutoSkipDelay ?? 5;
         keyDelayInput.value = data.keyDelay ?? 2;
         loopToggle.checked = data.loopingEnabled;
         loopResetInput.value = data.loopReset ?? 10;
@@ -288,6 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
         scanHotkeyInput.value = data.scanHotkey || 'Ctrl+Shift+K';
         scanDurationInput.value = data.scanDuration ?? 60;
         updateSkipEnabled();
+        updateSimpleSkipEnabled();
         updateLoopEnabled();
         updateScanEnabled();
     });
@@ -307,7 +324,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNaN(keyDelay) || keyDelay < 0) keyDelay = 0;
         keyDelayInput.value = keyDelay;
 
+        let simpleDelay = parseFloat(simpleSkipDelayInput.value) || 0;
+        simpleSkipDelayInput.value = simpleDelay;
+
         const enabled = smartSkipToggle.checked;
+        const simpleEnabled = simpleSkipToggle.checked;
         const loopingEnabled = loopToggle.checked;
         const scanEnabled = scanToggle.checked;
         let scanDuration = parseFloat(scanDurationInput.value) || 60;
@@ -335,13 +356,15 @@ document.addEventListener('DOMContentLoaded', () => {
             siteRules[url] = cfg;
         });
 
-        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules, scanningEnabled: scanEnabled, scanHotkey, scanDuration }, () => {
+        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, simpleAutoSkipEnabled: simpleEnabled, simpleAutoSkipDelay: simpleDelay, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules, scanningEnabled: scanEnabled, scanHotkey, scanDuration }, () => {
             chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
                 if (tabs[0]) {
                     chrome.tabs.sendMessage(tabs[0].id, {
                         customSpeedRules: rules,
                         skipDelay: enabled ? delay : 0,
                         smartSkipEnabled: enabled,
+                        simpleAutoSkipEnabled: simpleEnabled,
+                        simpleAutoSkipDelay: simpleDelay,
                         keyDelay,
                         loopingEnabled,
                         loopReset: parseFloat(loopResetInput.value) || 10,

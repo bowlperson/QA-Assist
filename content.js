@@ -24,6 +24,10 @@ let scanCounts = { types: {}, validations: {} };
 let scanItems = new Set();
 let scanIntervalId = null;
 let scanTimeoutId = null;
+let simpleAutoSkipEnabled = false;
+let simpleAutoSkipDelay = 5;
+let simpleAutoSkipTimerId = null;
+let simpleAutoSkipSignature = "";
 
 function applySiteRule() {
     const host = location.hostname;
@@ -300,6 +304,31 @@ function startNoVideoTimer(info) {
     }, noVideoSkipDelay * 1000);
 }
 
+function cancelSimpleAutoSkip() {
+    if (simpleAutoSkipTimerId) {
+        clearTimeout(simpleAutoSkipTimerId);
+        simpleAutoSkipTimerId = null;
+        console.log("⏹️ Simple auto-skip timer canceled");
+    }
+    simpleAutoSkipSignature = "";
+}
+
+function scheduleSimpleAutoSkip(info) {
+    if (!simpleAutoSkipEnabled || simpleAutoSkipDelay <= 0 || !info) return;
+    const sig = `${info.eventType}-${info.timestamp}`;
+    if (sig === simpleAutoSkipSignature) return;
+    cancelSimpleAutoSkip();
+    simpleAutoSkipSignature = sig;
+    console.log(`⏭️ Simple auto skip in ${simpleAutoSkipDelay}s`);
+    const last = info.isLastCell;
+    simpleAutoSkipTimerId = setTimeout(() => {
+        const key = last ? "ArrowRight" : "ArrowDown";
+        console.log(`➡️ Simple auto skip pressing ${key}`);
+        pressKeyEvent(key);
+        simpleAutoSkipTimerId = null;
+    }, simpleAutoSkipDelay * 1000);
+}
+
 // Looping mode helpers
 function stopLoopMonitor() {
     if (loopMonitorId) {
@@ -403,6 +432,7 @@ function monitorVideos() {
         console.warn("⚠️ No target videos found.");
         const info = saveEventData(null);
         if (info && info.eventType) {
+            scheduleSimpleAutoSkip(info);
             startNoVideoTimer(info);
         }
         return;
@@ -462,6 +492,7 @@ function monitorVideos() {
     });
 
     if (firstInfo && firstInfo.eventType) {
+        scheduleSimpleAutoSkip(firstInfo);
         if (!playing) {
             startNoVideoTimer(firstInfo);
         } else {
@@ -495,6 +526,7 @@ chrome.runtime.onMessage.addListener((request) => {
             if (loopingEnabled) startLoopMonitor();
         } else {
             stopLoopMonitor();
+            cancelSimpleAutoSkip();
         }
     }
 
@@ -541,6 +573,16 @@ chrome.runtime.onMessage.addListener((request) => {
     if (request.skipDelay !== undefined) {
         noVideoSkipDelay = parseFloat(request.skipDelay) || 0;
         console.log("⏩ No-video skip delay updated:", noVideoSkipDelay);
+    }
+
+    if (request.simpleAutoSkipEnabled !== undefined) {
+        simpleAutoSkipEnabled = request.simpleAutoSkipEnabled;
+        console.log("⏭️ Simple auto skip:", simpleAutoSkipEnabled);
+        if (!simpleAutoSkipEnabled) cancelSimpleAutoSkip();
+    }
+    if (request.simpleAutoSkipDelay !== undefined) {
+        simpleAutoSkipDelay = parseFloat(request.simpleAutoSkipDelay) || 0;
+        console.log("⏱️ Simple auto skip delay:", simpleAutoSkipDelay);
     }
 
     if (request.keyDelay !== undefined) {
@@ -596,7 +638,7 @@ chrome.runtime.onMessage.addListener((request) => {
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled", "keyDelay", "loopingEnabled", "loopReset", "loopHold", "loopFollow", "siteRules", "scanningEnabled", "scanHotkey", "scanDuration"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled", "simpleAutoSkipEnabled", "simpleAutoSkipDelay", "keyDelay", "loopingEnabled", "loopReset", "loopHold", "loopFollow", "siteRules", "scanningEnabled", "scanHotkey", "scanDuration"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
@@ -605,6 +647,8 @@ chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext"
     customSpeedRules = data.customSpeedRules || [];
     noVideoSkipDelay = parseFloat(data.skipDelay) || 0;
     smartSkipEnabled = data.smartSkipEnabled ?? false;
+    simpleAutoSkipEnabled = data.simpleAutoSkipEnabled ?? false;
+    simpleAutoSkipDelay = parseFloat(data.simpleAutoSkipDelay) || 5;
     keyDelay = parseFloat(data.keyDelay) || 2;
     loopingEnabled = data.loopingEnabled ?? false;
     loopReset = parseFloat(data.loopReset) || 10;
