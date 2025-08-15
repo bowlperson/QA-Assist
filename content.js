@@ -16,6 +16,14 @@ let loopMonitorId = null;
 let loopSignature = "";
 let loopCounter = 0;
 let siteRules = {};
+let scanningEnabled = false;
+let scanHotkey = { ctrl: true, shift: true, alt: false, key: 'k' };
+let scanDuration = 60;
+let scanActive = false;
+let scanCounts = { types: {}, validations: {} };
+let scanItems = new Set();
+let scanIntervalId = null;
+let scanTimeoutId = null;
 
 function applySiteRule() {
     const host = location.hostname;
@@ -55,6 +63,101 @@ function applySiteRule() {
     if (rule.loopHold !== undefined) loopHold = parseFloat(rule.loopHold) || loopHold;
     if (rule.loopFollow !== undefined) loopFollow = rule.loopFollow;
 }
+
+function parseHotkey(str) {
+    const parts = str.split('+').map(p => p.trim().toLowerCase());
+    const key = parts.pop() || 'k';
+    return {
+        ctrl: parts.includes('ctrl'),
+        shift: parts.includes('shift'),
+        alt: parts.includes('alt'),
+        key
+    };
+}
+
+function matchesHotkey(e, hk) {
+    return e.key.toLowerCase() === hk.key && e.ctrlKey === hk.ctrl && e.shiftKey === hk.shift && e.altKey === hk.alt;
+}
+
+function scanOnce() {
+    document.querySelectorAll('.gvEventListItemPadding').forEach(item => {
+        if (scanItems.has(item)) return;
+        scanItems.add(item);
+        const rights = item.querySelectorAll('.gvEventListItemRight');
+        if (rights.length > 0) {
+            const validation = rights[0].textContent.trim();
+            if (validation) {
+                scanCounts.validations[validation] = (scanCounts.validations[validation] || 0) + 1;
+            }
+        }
+        if (rights.length > 1) {
+            const type = rights[1].textContent.trim();
+            if (type) {
+                scanCounts.types[type] = (scanCounts.types[type] || 0) + 1;
+            }
+        }
+    });
+}
+
+function showScanResults() {
+    const win = window.open('', '', 'width=400,height=400');
+    if (!win) return;
+    const doc = win.document;
+    doc.write('<html><head><title>Scan Results</title></head><body style="font-family:sans-serif;background:#222;color:#fff;">');
+    const valCounts = scanCounts.validations;
+    const valMax = Math.max(0, ...Object.values(valCounts));
+    doc.write('<h3>Validations</h3><ul>');
+    for (const [name, count] of Object.entries(valCounts)) {
+        const hue = valMax ? 120 - (count / valMax) * 120 : 120;
+        doc.write(`<li>${name}: <span style="color:hsl(${hue},100%,50%)">${count}</span></li>`);
+    }
+    doc.write('</ul>');
+    const typeCounts = scanCounts.types;
+    const typeMax = Math.max(0, ...Object.values(typeCounts));
+    doc.write('<h3>Event Types</h3><ul>');
+    for (const [name, count] of Object.entries(typeCounts)) {
+        const hue = typeMax ? 120 - (count / typeMax) * 120 : 120;
+        doc.write(`<li>${name}: <span style="color:hsl(${hue},100%,50%)">${count}</span></li>`);
+    }
+    doc.write('</ul></body></html>');
+    doc.close();
+    scanCounts = { types: {}, validations: {} };
+    scanItems = new Set();
+}
+
+function finishScan() {
+    if (!scanActive) return;
+    clearInterval(scanIntervalId);
+    clearTimeout(scanTimeoutId);
+    scanIntervalId = null;
+    scanTimeoutId = null;
+    scanActive = false;
+    console.log('📊 Scanning finished');
+    showScanResults();
+}
+
+function startScan() {
+    if (scanActive) return;
+    scanActive = true;
+    scanCounts = { types: {}, validations: {} };
+    scanItems = new Set();
+    console.log('🔎 Scanning started for', scanDuration, 's');
+    scanOnce();
+    scanIntervalId = setInterval(scanOnce, 1000);
+    scanTimeoutId = setTimeout(finishScan, scanDuration * 1000);
+}
+
+document.addEventListener('keydown', e => {
+    if (!scanningEnabled) return;
+    if (matchesHotkey(e, scanHotkey)) {
+        e.preventDefault();
+        if (scanActive) {
+            finishScan();
+        } else {
+            startScan();
+        }
+    }
+});
 function extractEventData(video) {
     let allRows = document.querySelectorAll(".gvEventListItemPadding");
     let selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
@@ -477,10 +580,23 @@ chrome.runtime.onMessage.addListener((request) => {
             cancelNoVideoTimer();
         }
     }
+    if (request.scanningEnabled !== undefined) {
+        scanningEnabled = request.scanningEnabled;
+        console.log('🔍 Scanning mode:', scanningEnabled);
+        if (!scanningEnabled && scanActive) finishScan();
+    }
+    if (request.scanHotkey) {
+        scanHotkey = parseHotkey(request.scanHotkey);
+        console.log('⌨️ Scan hotkey:', request.scanHotkey);
+    }
+    if (request.scanDuration !== undefined) {
+        scanDuration = parseFloat(request.scanDuration) || 60;
+        console.log('⏱️ Scan duration:', scanDuration);
+    }
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled", "keyDelay", "loopingEnabled", "loopReset", "loopHold", "loopFollow", "siteRules"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled", "keyDelay", "loopingEnabled", "loopReset", "loopHold", "loopFollow", "siteRules", "scanningEnabled", "scanHotkey", "scanDuration"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
@@ -495,6 +611,9 @@ chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext"
     loopHold = parseFloat(data.loopHold) || 5;
     loopFollow = data.loopFollow ?? true;
     siteRules = data.siteRules || {};
+    scanningEnabled = data.scanningEnabled ?? false;
+    scanHotkey = parseHotkey(data.scanHotkey || 'Ctrl+Shift+K');
+    scanDuration = parseFloat(data.scanDuration) || 60;
 
     const host = location.hostname;
     applySiteRule();

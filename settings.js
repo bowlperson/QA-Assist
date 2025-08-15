@@ -25,6 +25,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const saveBtn = document.getElementById('saveSettings');
     const siteRulesContainer = document.getElementById('siteRulesContainer');
     const addSiteRuleBtn = document.getElementById('addSiteRule');
+    const scanToggle = document.getElementById('scanToggle');
+    const scanHotkeyInput = document.getElementById('scanHotkey');
+    const scanDurationInput = document.getElementById('scanDuration');
+    const scanHotkeyContainer = document.getElementById('scanHotkeyContainer');
+    const scanDurationContainer = document.getElementById('scanDurationContainer');
 
     function createSiteRuleRow(rule) {
         const div = document.createElement('div');
@@ -208,6 +213,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function updateScanEnabled() {
+        const on = scanToggle.checked;
+        [scanHotkeyContainer, scanDurationContainer].forEach(el => {
+            if (on) {
+                el.classList.remove('disabled');
+                el.querySelectorAll('input').forEach(i => i.disabled = false);
+            } else {
+                el.classList.add('disabled');
+                el.querySelectorAll('input').forEach(i => i.disabled = true);
+            }
+        });
+    }
+
     function createRuleRow(rule) {
         const div = document.createElement('div');
         div.className = 'rule';
@@ -246,8 +264,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     smartSkipToggle.addEventListener('change', updateSkipEnabled);
     loopToggle.addEventListener('change', updateLoopEnabled);
+    scanToggle.addEventListener('change', updateScanEnabled);
 
-    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {} }, data => {
+    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {}, scanningEnabled: false, scanHotkey: 'Ctrl+Shift+K', scanDuration: 60 }, data => {
         const rules = data.customSpeedRules;
         if (rules.length === 0) {
             createRuleRow();
@@ -265,8 +284,12 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.entries(data.siteRules).forEach(([url, cfg]) => {
             createSiteRuleRow(Object.assign({ url }, cfg));
         });
+        scanToggle.checked = data.scanningEnabled;
+        scanHotkeyInput.value = data.scanHotkey || 'Ctrl+Shift+K';
+        scanDurationInput.value = data.scanDuration ?? 60;
         updateSkipEnabled();
         updateLoopEnabled();
+        updateScanEnabled();
     });
 
     saveBtn.addEventListener('click', () => {
@@ -286,6 +309,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const enabled = smartSkipToggle.checked;
         const loopingEnabled = loopToggle.checked;
+        const scanEnabled = scanToggle.checked;
+        let scanDuration = parseFloat(scanDurationInput.value) || 60;
+        scanDurationInput.value = scanDuration;
+        const scanHotkey = scanHotkeyInput.value || 'Ctrl+Shift+K';
 
         const siteRules = {};
         siteRulesContainer.querySelectorAll('.site-rule').forEach(div => {
@@ -308,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
             siteRules[url] = cfg;
         });
 
-        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules }, () => {
+        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules, scanningEnabled: scanEnabled, scanHotkey, scanDuration }, () => {
             chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
                 if (tabs[0]) {
                     chrome.tabs.sendMessage(tabs[0].id, {
@@ -320,7 +347,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         loopReset: parseFloat(loopResetInput.value) || 10,
                         loopHold: parseFloat(loopHoldInput.value) || 5,
                         loopFollow: loopFollowToggle.checked,
-                        siteRules
+                        siteRules,
+                        scanningEnabled: scanEnabled,
+                        scanHotkey,
+                        scanDuration
                     });
                 }
             });
