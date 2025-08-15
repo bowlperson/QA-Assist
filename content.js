@@ -14,7 +14,6 @@ let loopHold = 5;
 let loopFollow = true;
 let loopTimerId = null;
 let lastLoopSignature = "";
-let loopCheckIntervalId = null;
 let siteRules = {};
 
 function applySiteRule() {
@@ -24,7 +23,6 @@ function applySiteRule() {
     if (rule.disabled) {
         if (isEnabled) {
             isEnabled = false;
-            stopLoopMonitor();
             cancelLoopTimer();
         }
     }
@@ -46,7 +44,7 @@ function applySiteRule() {
     if (rule.keyDelay !== undefined) keyDelay = parseFloat(rule.keyDelay) || 0;
     if (rule.loopingEnabled !== undefined) {
         loopingEnabled = rule.loopingEnabled;
-        if (loopingEnabled) startLoopMonitor(); else { stopLoopMonitor(); cancelLoopTimer(); }
+        if (!loopingEnabled) cancelLoopTimer();
     }
     if (rule.loopReset !== undefined) loopReset = parseFloat(rule.loopReset) || loopReset;
     if (rule.loopHold !== undefined) loopHold = parseFloat(rule.loopHold) || loopHold;
@@ -207,6 +205,7 @@ function cancelLoopTimer() {
         loopTimerId = null;
         console.log("⏹️ Loop timer canceled");
     }
+    lastLoopSignature = "";
 }
 
 function holdKey(key, seconds, callback) {
@@ -251,44 +250,21 @@ function triggerLoop() {
     });
 }
 
-function scheduleLoop() {
-    if (!loopingEnabled || loopReset <= 0) return;
+function scheduleLoop(info) {
+    if (!loopingEnabled || !info || !info.isLastCell || loopReset <= 0) return;
+    if (isAnyVideoPlaying()) return;
     cancelLoopTimer();
-    console.log(`🔁 Loop scheduled in ${loopReset}s if event unchanged...`);
-    loopTimerId = setTimeout(triggerLoop, loopReset * 1000);
-}
-
-function checkLoop(info) {
-    if (!loopingEnabled || !info || !info.isLastCell) {
-        cancelLoopTimer();
-        lastLoopSignature = "";
-        return;
-    }
-    if (isAnyVideoPlaying()) {
-        cancelLoopTimer();
-        lastLoopSignature = "";
-        return;
-    }
-    const sig = `${info.eventType}-${info.timestamp}`;
-    if (sig !== lastLoopSignature) {
-        lastLoopSignature = sig;
-        scheduleLoop();
-    }
-}
-
-function startLoopMonitor() {
-    if (loopCheckIntervalId) return;
-    loopCheckIntervalId = setInterval(() => {
-        const info = extractEventData(null);
-        checkLoop(info);
-    }, 1000);
-}
-
-function stopLoopMonitor() {
-    if (loopCheckIntervalId) {
-        clearInterval(loopCheckIntervalId);
-        loopCheckIntervalId = null;
-    }
+    lastLoopSignature = `${info.eventType}-${info.timestamp}`;
+    console.log(`🔁 Loop scheduled in ${loopReset}s for ${lastLoopSignature}`);
+    loopTimerId = setTimeout(() => {
+        const current = extractEventData(null);
+        const sig = current ? `${current.eventType}-${current.timestamp}` : "";
+        if (sig === lastLoopSignature && !isAnyVideoPlaying()) {
+            triggerLoop();
+        } else {
+            console.log("🔄 Loop canceled due to event change or playback");
+        }
+    }, loopReset * 1000);
 }
 
 // Function to remove Eye Tracker canvas whenever a video is detected
@@ -314,7 +290,7 @@ function monitorVideos() {
         const info = saveEventData(null);
         if (info && info.eventType) {
             startNoVideoTimer(info);
-            checkLoop(info);
+            scheduleLoop(info);
         }
         return;
     }
@@ -375,7 +351,7 @@ function monitorVideos() {
 
     if (!playing && firstInfo && firstInfo.eventType) {
         startNoVideoTimer(firstInfo);
-        checkLoop(firstInfo);
+        scheduleLoop(firstInfo);
     } else if (playing) {
         cancelNoVideoTimer();
         cancelLoopTimer();
@@ -403,9 +379,7 @@ chrome.runtime.onMessage.addListener((request) => {
         if (isEnabled) {
             monitorVideos();
             monitorForNewVideos();
-            if (loopingEnabled) startLoopMonitor();
         } else {
-            stopLoopMonitor();
             cancelLoopTimer();
         }
     }
@@ -465,16 +439,16 @@ chrome.runtime.onMessage.addListener((request) => {
         console.log("🔁 Looping mode:", loopingEnabled);
         if (!loopingEnabled) {
             cancelLoopTimer();
-            stopLoopMonitor();
-        } else {
-            startLoopMonitor();
         }
     }
 
     if (request.loopReset !== undefined) {
         loopReset = parseFloat(request.loopReset) || 10;
         console.log("🔄 Loop reset seconds:", loopReset);
-        if (loopingEnabled && lastLoopSignature) scheduleLoop();
+        if (loopingEnabled && lastLoopSignature) {
+            const info = extractEventData(null);
+            scheduleLoop(info);
+        }
     }
 
     if (request.loopHold !== undefined) {
@@ -520,7 +494,6 @@ chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext"
     if (isEnabled) {
         monitorVideos();
         monitorForNewVideos();
-        if (loopingEnabled) startLoopMonitor();
     }
 
     if (removeEyeTracker) {
