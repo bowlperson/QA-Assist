@@ -1,67 +1,223 @@
 let isEnabled = false;
 let playbackSpeed = 1.0; // Default to 1x speed
-let pressKey = "ArrowRight"; // Default key
+let pressKey = "ArrowDown"; // Default key is Down Arrow
 let autoPressNext = false; // Default to disabled
 let removeEyeTracker = false; // Default to disabled
+let customSpeedRules = [];
+let noVideoSkipDelay = 0;
+let noVideoTimerId = null;
+let smartSkipEnabled = false;
+let keyDelay = 2; // Delay after video ends before pressing Right Arrow
+let loopingEnabled = false;
+let loopReset = 10;
+let loopHold = 5;
+let loopFollow = true;
+let loopMonitorId = null;
+let loopSignature = "";
+let loopCounter = 0;
+let siteRules = {};
+let scanningEnabled = false;
+let scanHotkey = { ctrl: true, shift: true, alt: false, key: 'k' };
+let scanDuration = 60;
+let scanActive = false;
+let scanCounts = { types: {}, validations: {} };
+let scanItems = new Set();
+let scanIntervalId = null;
+let scanTimeoutId = null;
+let simpleAutoSkipEnabled = false;
+let simpleAutoSkipDelay = 5;
+let simpleAutoSkipTimerId = null;
+let simpleAutoSkipSignature = "";
 
-// Function to store event data from the selected row
-function saveEventData(video) {
+function applySiteRule() {
+    const host = location.hostname;
+    const rule = siteRules[host];
+    if (!rule) return;
+    if (rule.disabled) {
+        if (isEnabled) {
+            isEnabled = false;
+            stopLoopMonitor();
+        }
+    }
+    if (rule.speed !== undefined) {
+        playbackSpeed = parseFloat(rule.speed) || playbackSpeed;
+        document.querySelectorAll('video').forEach(v => applyPlaybackSpeed(v));
+    }
+    if (rule.pressKey) pressKey = rule.pressKey;
+    if (rule.autoPressNext !== undefined) autoPressNext = rule.autoPressNext;
+    if (rule.removeEyeTracker !== undefined) {
+        removeEyeTracker = rule.removeEyeTracker;
+        if (removeEyeTracker) removeEyeTrackerElement();
+    }
+    if (rule.customSpeedRules) {
+        customSpeedRules = rule.customSpeedRules;
+    }
+    if (rule.skipDelay !== undefined) noVideoSkipDelay = parseFloat(rule.skipDelay) || 0;
+    if (rule.smartSkipEnabled !== undefined) smartSkipEnabled = rule.smartSkipEnabled;
+    if (rule.keyDelay !== undefined) keyDelay = parseFloat(rule.keyDelay) || 0;
+    if (rule.loopingEnabled !== undefined) {
+        loopingEnabled = rule.loopingEnabled;
+        if (loopingEnabled) {
+            if (isEnabled) startLoopMonitor();
+        } else {
+            stopLoopMonitor();
+        }
+    }
+    if (rule.loopReset !== undefined) loopReset = parseFloat(rule.loopReset) || loopReset;
+    if (rule.loopHold !== undefined) loopHold = parseFloat(rule.loopHold) || loopHold;
+    if (rule.loopFollow !== undefined) loopFollow = rule.loopFollow;
+}
+
+function parseHotkey(str) {
+    const parts = str.split('+').map(p => p.trim().toLowerCase());
+    const key = parts.pop() || 'k';
+    return {
+        ctrl: parts.includes('ctrl'),
+        shift: parts.includes('shift'),
+        alt: parts.includes('alt'),
+        key
+    };
+}
+
+function matchesHotkey(e, hk) {
+    return e.key.toLowerCase() === hk.key && e.ctrlKey === hk.ctrl && e.shiftKey === hk.shift && e.altKey === hk.alt;
+}
+
+function scanOnce() {
+    document.querySelectorAll('.gvEventListItemPadding').forEach(item => {
+        if (scanItems.has(item)) return;
+        scanItems.add(item);
+        const rights = item.querySelectorAll('.gvEventListItemRight');
+        if (rights.length > 0) {
+            const validation = rights[0].textContent.trim();
+            if (validation) {
+                scanCounts.validations[validation] = (scanCounts.validations[validation] || 0) + 1;
+            }
+        }
+        if (rights.length > 1) {
+            const type = rights[1].textContent.trim();
+            if (type) {
+                scanCounts.types[type] = (scanCounts.types[type] || 0) + 1;
+            }
+        }
+    });
+}
+
+function showScanResults() {
+    const win = window.open('', '', 'width=400,height=400');
+    if (!win) return;
+    const doc = win.document;
+    doc.write('<html><head><title>Scan Results</title></head><body style="font-family:sans-serif;background:#222;color:#fff;">');
+    const valCounts = scanCounts.validations;
+    const valMax = Math.max(0, ...Object.values(valCounts));
+    doc.write('<h3>Validations</h3><ul>');
+    for (const [name, count] of Object.entries(valCounts)) {
+        const hue = valMax ? 120 - (count / valMax) * 120 : 120;
+        doc.write(`<li>${name}: <span style="color:hsl(${hue},100%,50%)">${count}</span></li>`);
+    }
+    doc.write('</ul>');
+    const typeCounts = scanCounts.types;
+    const typeMax = Math.max(0, ...Object.values(typeCounts));
+    doc.write('<h3>Event Types</h3><ul>');
+    for (const [name, count] of Object.entries(typeCounts)) {
+        const hue = typeMax ? 120 - (count / typeMax) * 120 : 120;
+        doc.write(`<li>${name}: <span style="color:hsl(${hue},100%,50%)">${count}</span></li>`);
+    }
+    doc.write('</ul></body></html>');
+    doc.close();
+    scanCounts = { types: {}, validations: {} };
+    scanItems = new Set();
+}
+
+function finishScan() {
+    if (!scanActive) return;
+    clearInterval(scanIntervalId);
+    clearTimeout(scanTimeoutId);
+    scanIntervalId = null;
+    scanTimeoutId = null;
+    scanActive = false;
+    console.log('📊 Scanning finished');
+    showScanResults();
+}
+
+function startScan() {
+    if (scanActive) return;
+    scanActive = true;
+    scanCounts = { types: {}, validations: {} };
+    scanItems = new Set();
+    console.log('🔎 Scanning started for', scanDuration, 's');
+    scanOnce();
+    scanIntervalId = setInterval(scanOnce, 1000);
+    scanTimeoutId = setTimeout(finishScan, scanDuration * 1000);
+}
+
+document.addEventListener('keydown', e => {
+    if (!scanningEnabled) return;
+    if (matchesHotkey(e, scanHotkey)) {
+        e.preventDefault();
+        if (scanActive) {
+            finishScan();
+        } else {
+            startScan();
+        }
+    }
+});
+function extractEventData(video) {
     let allRows = document.querySelectorAll(".gvEventListItemPadding");
     let selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
-    let isHideTracking = video.closest(".videos.hide-tracking") !== null; // Check if the video is inside hide-tracking
+    let isHideTracking = false;
+    if (video) {
+        isHideTracking = video.closest(".videos.hide-tracking") !== null;
+    } else if (document.querySelector(".videos.hide-tracking .item.selected")) {
+        isHideTracking = true;
+    }
 
     let eventType = "";
-    let truckNumber = ""; // Leave blank for hide-tracking
+    let truckNumber = "";
     let timestamp = "";
-    let pageUrl = window.location.href;
     let isLastCell = false;
 
     if (isHideTracking) {
-        // Get the selected container within hide-tracking
-        let selectedItem = document.querySelector(".item.selected");
-
+        let selectedItem = document.querySelector(".videos.hide-tracking .item.selected");
         if (selectedItem) {
             let eventTypeElement = selectedItem.querySelector("label.field-event_type");
             let timestampElement = selectedItem.querySelector("label.field-created_at");
-
-            if (eventTypeElement) {
-                eventType = eventTypeElement.textContent.trim();
-            }
-            if (timestampElement) {
-                timestamp = timestampElement.textContent.trim();
-            }
-
-            console.log("📌 Logging event from hide-tracking video (selected item):", { eventType, timestamp, pageUrl });
-        } else {
-            console.warn("⚠️ No selected item found for hide-tracking video.");
+            if (eventTypeElement) eventType = eventTypeElement.textContent.trim();
+            if (timestampElement) timestamp = timestampElement.textContent.trim();
         }
     } else if (selectedRow) {
-        // Normal gvVideo.controllerless logging
         isLastCell = selectedRow === allRows[allRows.length - 1];
-
         let eventTypeElement = selectedRow.querySelector(".gvEventListItemRight[style*='color']");
         let truckNumberElements = selectedRow.querySelectorAll(".gvEventListItemLeft");
         let timestampElement = selectedRow.querySelector(".gvEventListItemRight[style*='width: 90%']");
-
         let truckNumberElement = (truckNumberElements.length > 1) ? truckNumberElements[1] : null;
-
-        if (eventTypeElement) {
-            eventType = eventTypeElement.textContent.trim();
-        }
-        if (truckNumberElement) {
-            truckNumber = truckNumberElement.textContent.trim();
-        }
-        if (timestampElement) {
-            timestamp = timestampElement.textContent.trim();
-        }
-
-        console.log("📌 Logging event from normal video:", { eventType, truckNumber, timestamp, pageUrl, isLastCell });
+        if (eventTypeElement) eventType = eventTypeElement.textContent.trim();
+        if (truckNumberElement) truckNumber = truckNumberElement.textContent.trim();
+        if (timestampElement) timestamp = timestampElement.textContent.trim();
     } else {
+        return null;
+    }
+
+    return { eventType, truckNumber, timestamp, isLastCell };
+}
+
+// Function to store event data from the selected row
+function saveEventData(video) {
+    let info = extractEventData(video);
+    if (!info) {
         console.warn("⚠️ No selected row found for event logging.");
         return false;
     }
-
+    let { eventType, truckNumber, timestamp, isLastCell } = info;
+    let pageUrl = window.location.href;
     let eventData = { eventType, truckNumber, timestamp, pageUrl, isLastCell };
+
+    console.log("📌 Logging event:", eventData);
+
+    // store event type on the video for speed rules
+    if (video) {
+        video.dataset.eventType = eventType;
+    }
 
     chrome.storage.local.get("eventLogs", function (data) {
         let logs = data.eventLogs || [];
@@ -71,7 +227,7 @@ function saveEventData(video) {
         console.log("📌 Event logged successfully:", eventData);
     });
 
-    return isLastCell;
+    return { isLastCell, eventType };
 }
 
 
@@ -83,8 +239,8 @@ function pressKeyEvent(key) {
     let eventDown = new KeyboardEvent("keydown", {
         key: key,
         code: key,
-        keyCode: key === "ArrowRight" ? 39 : 40,
-        which: key === "ArrowRight" ? 39 : 40,
+        keyCode: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
+        which: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
         bubbles: true,
         cancelable: true
     });
@@ -92,8 +248,8 @@ function pressKeyEvent(key) {
     let eventUp = new KeyboardEvent("keyup", {
         key: key,
         code: key,
-        keyCode: key === "ArrowRight" ? 39 : 40,
-        which: key === "ArrowRight" ? 39 : 40,
+        keyCode: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
+        which: key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40,
         bubbles: true,
         cancelable: true
     });
@@ -111,8 +267,146 @@ function pressKeyEvent(key) {
 // Function to apply playback speed
 function applyPlaybackSpeed(video) {
     if (video) {
-        video.playbackRate = playbackSpeed;
-        console.log(`⚡ Playback speed set to ${playbackSpeed}x for`, video);
+        let speed = playbackSpeed;
+        const type = video.dataset.eventType || "";
+        for (const rule of customSpeedRules) {
+            if (rule.eventType === type) {
+                speed = parseFloat(rule.speed);
+                break;
+            }
+        }
+        video.playbackRate = speed;
+        console.log(`⚡ Playback speed set to ${speed}x for`, type, video);
+    }
+}
+
+// Function to handle smart skip
+function cancelNoVideoTimer() {
+    if (noVideoTimerId) {
+        clearTimeout(noVideoTimerId);
+        noVideoTimerId = null;
+        console.log("⏹️ No-video timer canceled");
+    }
+}
+
+function startNoVideoTimer(info) {
+    if (!smartSkipEnabled || noVideoSkipDelay <= 0) return;
+    cancelNoVideoTimer();
+    const { eventType, isLastCell } = info || {};
+    console.log(`⏩ No video playback detected for ${eventType}; will skip in ${noVideoSkipDelay}s`);
+    noVideoTimerId = setTimeout(() => {
+        console.log("⏭️ Skipping due to no video playback");
+        let key = pressKey;
+        if (autoPressNext && isLastCell) {
+            key = "ArrowRight";
+        }
+        pressKeyEvent(key);
+    }, noVideoSkipDelay * 1000);
+}
+
+function cancelSimpleAutoSkip() {
+    if (simpleAutoSkipTimerId) {
+        clearTimeout(simpleAutoSkipTimerId);
+        simpleAutoSkipTimerId = null;
+        console.log("⏹️ Simple auto-skip timer canceled");
+    }
+    simpleAutoSkipSignature = "";
+}
+
+function scheduleSimpleAutoSkip(info) {
+    if (!simpleAutoSkipEnabled || simpleAutoSkipDelay <= 0 || !info) return;
+    const sig = `${info.eventType}-${info.timestamp}`;
+    if (sig === simpleAutoSkipSignature) return;
+    cancelSimpleAutoSkip();
+    simpleAutoSkipSignature = sig;
+    console.log(`⏭️ Simple auto skip in ${simpleAutoSkipDelay}s`);
+    const last = info.isLastCell;
+    simpleAutoSkipTimerId = setTimeout(() => {
+        const key = last ? "ArrowRight" : "ArrowDown";
+        console.log(`➡️ Simple auto skip pressing ${key}`);
+        pressKeyEvent(key);
+        simpleAutoSkipTimerId = null;
+    }, simpleAutoSkipDelay * 1000);
+}
+
+// Looping mode helpers
+function stopLoopMonitor() {
+    if (loopMonitorId) {
+        clearInterval(loopMonitorId);
+        loopMonitorId = null;
+        console.log("⏹️ Loop monitor stopped");
+    }
+    loopSignature = "";
+    loopCounter = 0;
+}
+
+function startLoopMonitor() {
+    if (loopMonitorId || !loopingEnabled || !isEnabled) return;
+    console.log("🔁 Loop monitor started");
+    loopMonitorId = setInterval(checkLoop, 1000);
+}
+
+function holdKey(key, seconds, callback) {
+    const element = document.activeElement || document;
+    const code = key === "ArrowLeft" ? 37 : key === "ArrowUp" ? 38 : key === "ArrowRight" ? 39 : 40;
+
+    const createDown = (repeat = false) => new KeyboardEvent("keydown", {
+        key,
+        code: key,
+        keyCode: code,
+        which: code,
+        bubbles: true,
+        cancelable: true,
+        repeat
+    });
+
+    const up = new KeyboardEvent("keyup", { key, code: key, keyCode: code, which: code, bubbles: true, cancelable: true });
+
+    element.dispatchEvent(createDown(false));
+    console.log(`⏮️ Holding ${key} for ${seconds}s`);
+
+    const intervalId = setInterval(() => {
+        element.dispatchEvent(createDown(true));
+    }, 100);
+
+    setTimeout(() => {
+        clearInterval(intervalId);
+        element.dispatchEvent(up);
+        console.log(`▶️ Released ${key}`);
+        if (callback) callback();
+    }, seconds * 1000);
+}
+
+function triggerLoop() {
+    holdKey("ArrowLeft", loopHold, () => {
+        if (loopFollow) {
+            pressKeyEvent("ArrowDown");
+            setTimeout(() => {
+                holdKey("ArrowUp", loopHold);
+            }, 500);
+        }
+    });
+}
+
+function checkLoop() {
+    if (!loopingEnabled) return;
+    const info = extractEventData(null);
+    if (!info || !info.isLastCell) {
+        loopSignature = "";
+        loopCounter = 0;
+        return;
+    }
+    const sig = `${info.eventType}-${info.timestamp}`;
+    if (sig === loopSignature) {
+        loopCounter++;
+        if (loopCounter >= loopReset) {
+            console.log("🔁 Loop trigger after", loopCounter, "s of", sig);
+            triggerLoop();
+            loopCounter = 0;
+        }
+    } else {
+        loopSignature = sig;
+        loopCounter = 1;
     }
 }
 
@@ -136,18 +430,29 @@ function monitorVideos() {
 
     if (videos.length === 0) {
         console.warn("⚠️ No target videos found.");
+        const info = saveEventData(null);
+        if (info && info.eventType) {
+            scheduleSimpleAutoSkip(info);
+            startNoVideoTimer(info);
+        }
         return;
     }
 
+    let firstInfo = null;
+    let playing = false;
     videos.forEach(video => {
         if (!video.dataset.listenerAdded) {
             console.log("🎥 Target video detected:", video);
 
             // Log event details based on video type
-            let isLastCell = saveEventData(video);
+            let info = saveEventData(video);
+            let isLastCell = info.isLastCell;
+            if (!firstInfo) firstInfo = info;
+            if (!video.paused) playing = true;
 
             // Apply the stored playback speed immediately
             applyPlaybackSpeed(video);
+            cancelNoVideoTimer();
 
             // If Remove Eye Tracker is enabled, check and remove it every time a video is detected
             if (removeEyeTracker) {
@@ -157,34 +462,44 @@ function monitorVideos() {
             video.addEventListener("play", () => {
                 console.log("✅ Video playing detected");
                 applyPlaybackSpeed(video);
+                cancelNoVideoTimer();
             });
 
             video.addEventListener("ended", () => {
                 if (isEnabled) {
                     console.log("🎬 Video ended.");
 
-                    // Always press the Down Arrow first
-                    console.log("⬇️ Pressing Down Arrow immediately.");
-                    pressKeyEvent("ArrowDown");
+                    console.log(`⏳ Buffering for ${keyDelay}s before skipping...`);
+                    setTimeout(() => {
+                        console.log("⬇️ Pressing Down Arrow after delay.");
+                        pressKeyEvent("ArrowDown");
 
-                    // Only press Right Arrow if "Auto Press Next List" is enabled and it's the last cell
-                    chrome.storage.sync.get("autoPressNext", function (data) {
-                        if (data.autoPressNext && isLastCell) {
-                            console.log("⏳ Waiting 2 seconds before pressing Right Arrow...");
+                        if (autoPressNext && isLastCell) {
+                            console.log(`⏳ Waiting another ${keyDelay}s before pressing Right Arrow...`);
                             setTimeout(() => {
                                 console.log("➡️ Pressing Right Arrow after delay.");
                                 pressKeyEvent("ArrowRight");
-                            }, 2000);
-                        } else if (!data.autoPressNext) {
+                            }, keyDelay * 1000);
+                        } else if (!autoPressNext) {
                             console.log("🚫 Auto Press Next List is disabled. Right Arrow will not be pressed.");
                         }
-                    });
+                    }, keyDelay * 1000);
                 }
             }, { once: true });
 
             video.dataset.listenerAdded = "true";
         }
     });
+
+    if (firstInfo && firstInfo.eventType) {
+        scheduleSimpleAutoSkip(firstInfo);
+        if (!playing) {
+            startNoVideoTimer(firstInfo);
+        } else {
+            cancelNoVideoTimer();
+        }
+        // loop monitoring handles last event checks separately
+    }
 }
 
 
@@ -208,6 +523,10 @@ chrome.runtime.onMessage.addListener((request) => {
         if (isEnabled) {
             monitorVideos();
             monitorForNewVideos();
+            if (loopingEnabled) startLoopMonitor();
+        } else {
+            stopLoopMonitor();
+            cancelSimpleAutoSkip();
         }
     }
 
@@ -237,21 +556,118 @@ chrome.runtime.onMessage.addListener((request) => {
         pressKey = request.pressKey;
         console.log("🔑 Key press updated to: " + pressKey);
     }
+
+    if (request.customSpeedRules) {
+        customSpeedRules = request.customSpeedRules;
+        console.log("⚡ Custom speed rules updated:", customSpeedRules);
+        let videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+        videos.forEach(video => applyPlaybackSpeed(video));
+    }
+
+    if (request.siteRules) {
+        siteRules = request.siteRules;
+        console.log("🌐 Site rules updated:", siteRules);
+        applySiteRule();
+    }
+
+    if (request.skipDelay !== undefined) {
+        noVideoSkipDelay = parseFloat(request.skipDelay) || 0;
+        console.log("⏩ No-video skip delay updated:", noVideoSkipDelay);
+    }
+
+    if (request.simpleAutoSkipEnabled !== undefined) {
+        simpleAutoSkipEnabled = request.simpleAutoSkipEnabled;
+        console.log("⏭️ Simple auto skip:", simpleAutoSkipEnabled);
+        if (!simpleAutoSkipEnabled) cancelSimpleAutoSkip();
+    }
+    if (request.simpleAutoSkipDelay !== undefined) {
+        simpleAutoSkipDelay = parseFloat(request.simpleAutoSkipDelay) || 0;
+        console.log("⏱️ Simple auto skip delay:", simpleAutoSkipDelay);
+    }
+
+    if (request.keyDelay !== undefined) {
+        keyDelay = parseFloat(request.keyDelay) || 0;
+        console.log("⌛ Key press delay updated:", keyDelay);
+    }
+
+    if (request.loopingEnabled !== undefined) {
+        loopingEnabled = request.loopingEnabled;
+        console.log("🔁 Looping mode:", loopingEnabled);
+        if (loopingEnabled && isEnabled) {
+            startLoopMonitor();
+        } else {
+            stopLoopMonitor();
+        }
+    }
+
+    if (request.loopReset !== undefined) {
+        loopReset = parseFloat(request.loopReset) || 10;
+        console.log("🔄 Loop reset seconds:", loopReset);
+        loopCounter = 0;
+    }
+
+    if (request.loopHold !== undefined) {
+        loopHold = parseFloat(request.loopHold) || 5;
+        console.log("🕒 Loop hold seconds:", loopHold);
+    }
+
+    if (request.loopFollow !== undefined) {
+        loopFollow = request.loopFollow;
+        console.log("📼 Loop follow-up:", loopFollow);
+    }
+    if (request.smartSkipEnabled !== undefined) {
+        smartSkipEnabled = request.smartSkipEnabled;
+        console.log("⏩ Smart Skip enabled:", smartSkipEnabled);
+        if (!smartSkipEnabled) {
+            cancelNoVideoTimer();
+        }
+    }
+    if (request.scanningEnabled !== undefined) {
+        scanningEnabled = request.scanningEnabled;
+        console.log('🔍 Scanning mode:', scanningEnabled);
+        if (!scanningEnabled && scanActive) finishScan();
+    }
+    if (request.scanHotkey) {
+        scanHotkey = parseHotkey(request.scanHotkey);
+        console.log('⌨️ Scan hotkey:', request.scanHotkey);
+    }
+    if (request.scanDuration !== undefined) {
+        scanDuration = parseFloat(request.scanDuration) || 60;
+        console.log('⏱️ Scan duration:', scanDuration);
+    }
 });
 
 // Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker"], function (data) {
+chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "customSpeedRules", "skipDelay", "smartSkipEnabled", "simpleAutoSkipEnabled", "simpleAutoSkipDelay", "keyDelay", "loopingEnabled", "loopReset", "loopHold", "loopFollow", "siteRules", "scanningEnabled", "scanHotkey", "scanDuration"], function (data) {
     isEnabled = data.enabled || false;
     playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
     pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
     autoPressNext = data.autoPressNext ?? false; // Default to disabled
     removeEyeTracker = data.removeEyeTracker ?? false; // Default to disabled
+    customSpeedRules = data.customSpeedRules || [];
+    noVideoSkipDelay = parseFloat(data.skipDelay) || 0;
+    smartSkipEnabled = data.smartSkipEnabled ?? false;
+    simpleAutoSkipEnabled = data.simpleAutoSkipEnabled ?? false;
+    simpleAutoSkipDelay = parseFloat(data.simpleAutoSkipDelay) || 5;
+    keyDelay = parseFloat(data.keyDelay) || 2;
+    loopingEnabled = data.loopingEnabled ?? false;
+    loopReset = parseFloat(data.loopReset) || 10;
+    loopHold = parseFloat(data.loopHold) || 5;
+    loopFollow = data.loopFollow ?? true;
+    siteRules = data.siteRules || {};
+    scanningEnabled = data.scanningEnabled ?? false;
+    scanHotkey = parseHotkey(data.scanHotkey || 'Ctrl+Shift+K');
+    scanDuration = parseFloat(data.scanDuration) || 60;
 
-    console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker);
+    const host = location.hostname;
+    applySiteRule();
+
+    console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker + ", Key Delay=" + keyDelay + "s, Looping=" + loopingEnabled + ", Host=" + host);
 
     if (isEnabled) {
         monitorVideos();
         monitorForNewVideos();
+        if (loopingEnabled) startLoopMonitor();
     }
 
     if (removeEyeTracker) {

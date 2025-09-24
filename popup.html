@@ -56,7 +56,7 @@
             text-align: left;
         }
 
-        #viewLogs {
+        #viewLogs, #openSettings {
             margin-top: 15px;
             padding: 8px;
             width: 100%;
@@ -68,7 +68,7 @@
             font-size: 14px;
         }
 
-        #viewLogs:hover {
+        #viewLogs:hover, #openSettings:hover {
             background-color: #3399ff;
         }
 
@@ -124,9 +124,15 @@
         <input type="checkbox" id="removeEyeTracker">
         Remove Eye Tracker
     </label>
+    <div style="margin-top: 8px;"></div>
+    <label>
+        <input type="checkbox" id="disableSite">
+        Disable for this site
+    </label>
 
     <p id="status">Status: <span id="statusText">Checking...</span></p>
 
+    <button id="openSettings">Advanced Settings</button>
     <button id="viewLogs">View Logs</button>
 
     <script src="popup.js"></script>
