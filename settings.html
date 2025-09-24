@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist · Settings</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #080c14;
+            --card: #131a27;
+            --border: #1f2838;
+            --text: #f3f5ff;
+            --muted: #909bb8;
+            --accent: #4c8dff;
+            --accent-soft: rgba(76, 141, 255, 0.15);
+            --danger: #ff5c8d;
+            --success: #3dd68c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 36px 40px 48px;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at top right, rgba(76, 141, 255, 0.12), transparent 55%), var(--bg);
+            color: var(--text);
+        }
+
+        .nav-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+        }
+
+        .nav-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+        }
+
+        .nav-link.active {
+            color: #fff;
+            border-color: rgba(76, 141, 255, 0.35);
+            background: linear-gradient(135deg, rgba(76, 141, 255, 0.32), rgba(17, 21, 34, 0.85));
+            box-shadow: 0 18px 36px rgba(76, 141, 255, 0.28);
+        }
+
+        header {
+            margin-bottom: 28px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 30px;
+            letter-spacing: 0.02em;
+        }
+
+        p.lead {
+            margin: 10px 0 0;
+            color: var(--muted);
+            max-width: 640px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 32px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        .status-indicator.active {
+            color: var(--success);
+            border-color: rgba(61, 214, 140, 0.35);
+            background: rgba(61, 214, 140, 0.12);
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 14px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .toggle span {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .switch {
+            position: relative;
+            width: 46px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            transition: background 0.2s ease;
+        }
+
+        .slider::before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            top: 3px;
+            border-radius: 50%;
+            background: #0f141e;
+            transition: transform 0.2s ease;
+        }
+
+        .switch input:checked + .slider {
+            background: linear-gradient(135deg, var(--accent), #6aa2ff);
+            box-shadow: 0 0 12px rgba(76, 141, 255, 0.35);
+        }
+
+        .switch input:checked + .slider::before {
+            transform: translateX(22px);
+            background: #fff;
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 18px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        select,
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(10, 14, 22, 0.85);
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .checkbox {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--muted);
+            cursor: pointer;
+        }
+
+        .checkbox input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .helper-text {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                padding: 24px;
+            }
+
+            .card {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-bar">
+        <a class="nav-link" href="log.html">Event Log</a>
+        <a class="nav-link active" href="settings.html">Settings</a>
+        <a class="nav-link" href="site-info.html">Site Info</a>
+        <a class="nav-link" href="site-overrides.html">Site Overrides</a>
+    </nav>
+    <header>
+        <h1>QA Assist — Settings</h1>
+        <p class="lead">Configure scanning behaviour, playback controls, and your monitor profile. These preferences are shared with the popup
+            for quick adjustments.</p>
+    </header>
+
+    <section class="card">
+        <div class="card-header">
+            <h2>Scanning Mode</h2>
+            <span class="status-indicator" id="scanningStatus">Standby</span>
+        </div>
+        <div class="toggle">
+            <span>Enable automatic scanning and event logging</span>
+            <label class="switch">
+                <input type="checkbox" id="enableScanning">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <p class="helper-text">When enabled, QA Assist will monitor supported pages, adjust playback, and capture events automatically.</p>
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <h2>Playback &amp; Controls</h2>
+        </div>
+        <div class="form-grid">
+            <div>
+                <label for="playbackSpeed">Playback Speed</label>
+                <select id="playbackSpeed">
+                    <option value="1">1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2x</option>
+                </select>
+            </div>
+            <div>
+                <label for="pressKey">Key Mapping</label>
+                <select id="pressKey">
+                    <option value="ArrowRight">OAS (➡)</option>
+                    <option value="ArrowDown">OpWeb (⬇)</option>
+                </select>
+                <p class="helper-text">Determines which navigation key is used for automatic progression.</p>
+            </div>
+        </div>
+        <div class="checkbox-row">
+            <label class="checkbox">
+                <input type="checkbox" id="autoPressNext">
+                <span>Auto press next when scanning OpWeb events</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" id="removeEyeTracker">
+                <span>Hide eye tracker overlay during playback</span>
+            </label>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <h2>Monitor Profile</h2>
+        </div>
+        <div class="form-grid">
+            <div>
+                <label for="monitorName">Monitor Name</label>
+                <input type="text" id="monitorName" placeholder="Enter your name" autocomplete="off">
+                <p class="helper-text">Used when confirming call validation details.</p>
+            </div>
+        </div>
+    </section>
+
+    <script src="settings.js"></script>
+</body>
+</html>
