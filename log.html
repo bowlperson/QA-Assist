@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Project Time Weaver · Event Log</title>
+    <title>QA Assist · Event Log</title>
     <style>
         :root {
             color-scheme: dark;
@@ -28,6 +28,32 @@
             color: var(--text);
             font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
             padding: 32px 36px 48px;
+        }
+
+        .top-nav {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .top-nav a {
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .top-nav a:hover,
+        .top-nav a:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+            outline: none;
         }
 
         h1 {
@@ -380,8 +406,15 @@
     </style>
 </head>
 <body>
+    <nav class="top-nav" aria-label="QA Assist navigation">
+        <a href="log.html">Event Log</a>
+        <a href="settings.html">Settings</a>
+        <a href="site-overrides.html">Site Overrides</a>
+        <a href="site-info.html">Site Info</a>
+    </nav>
+
     <header class="header">
-        <h1>Project Time Weaver — Event Log</h1>
+        <h1>QA Assist — Event Log</h1>
         <p>Review captured activity, manage bookmarks, and initiate call validations.</p>
     </header>
 

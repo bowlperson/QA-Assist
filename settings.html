@@ -1,147 +1,413 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Settings</title>
+    <meta charset="UTF-8">
+    <title>QA Assist · Settings</title>
     <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0d1119;
+            --panel: #161c2a;
+            --card: #1d2435;
+            --border: #252f45;
+            --text: #f5f7ff;
+            --muted: #9ba4c4;
+            --accent: #4c8dff;
+            --accent-soft: rgba(76, 141, 255, 0.22);
+            --danger: #ff5c8d;
+            --success: #3dd68c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background-color: #222;
-            color: #fff;
-            padding: 20px;
+            margin: 0;
+            padding: 40px 44px 52px;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: radial-gradient(circle at top, rgba(76, 141, 255, 0.14), transparent 55%), var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        h2 {
-            margin-top: 0;
+
+        .top-nav {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(13, 17, 25, 0.78);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            z-index: 10;
         }
+
+        .top-nav a {
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 600;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .top-nav a:hover,
+        .top-nav a:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+            outline: none;
+        }
+
+        .panel {
+            width: min(960px, 100%);
+            background: var(--panel);
+            border-radius: 26px;
+            border: 1px solid var(--border);
+            padding: 36px;
+            box-shadow: 0 48px 96px rgba(0, 0, 0, 0.35);
+            margin-top: 96px;
+        }
+
+        .panel-header {
+            margin-bottom: 28px;
+        }
+
+        .panel-header h1 {
+            margin: 0;
+            font-size: 30px;
+            letter-spacing: 0.02em;
+        }
+
+        .panel-header p {
+            margin: 10px 0 0;
+            color: var(--muted);
+            max-width: 720px;
+        }
+
+        .settings-section {
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .settings-section:last-of-type {
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .section-header p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .helper {
+            margin: 0 0 16px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: var(--text);
+        }
+
+        label span {
+            color: inherit;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            background: rgba(9, 13, 22, 0.82);
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+        input[type="number"] {
+            width: 72px;
+        }
+
+        .stack {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
         .rule {
             display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
+            gap: 12px;
+            align-items: center;
         }
+
+        .rule select {
+            flex: 1;
+        }
+
         .site-rule {
-            border: 1px solid #555;
-            padding: 10px;
-            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            background: rgba(10, 14, 24, 0.82);
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
+
         .site-rule label {
-            display: block;
-            margin-top: 5px;
+            margin: 0;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
         }
-        select {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px;
-            border-radius: 5px;
+
+        .site-rule label span,
+        .site-rule label input,
+        .site-rule label select {
+            font-size: 13px;
+            text-transform: none;
+            letter-spacing: normal;
+            color: var(--text);
         }
+
+        .toggle-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .inline-input {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
         button {
-            padding: 5px 10px;
-            border: none;
-            border-radius: 5px;
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
             cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
         }
-        #addRule {
-            background-color: #28a745;
-            color: #fff;
+
+        button:hover,
+        button:focus {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+            outline: none;
         }
-        .remove {
-            background-color: #dc3545;
-            color: #fff;
-        }
-        input[type="number"] {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px;
-            border-radius: 5px;
-            width: 60px;
-        }
-        input[type="text"] {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px;
-            border-radius: 5px;
-        }
+
+        #addRule,
         #addSiteRule {
-            background-color: #28a745;
+            background: linear-gradient(135deg, var(--accent), #6aa2ff);
+            border-color: transparent;
             color: #fff;
         }
+
+        .icon-button {
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .remove {
+            background: rgba(255, 92, 141, 0.18);
+            border-color: rgba(255, 92, 141, 0.35);
+            color: var(--danger);
+        }
+
         .disabled {
-            opacity: 0.5;
-            pointer-events: none;
+            opacity: 0.55;
         }
+
         #saveSettings {
-            background-color: #007bff;
+            background: linear-gradient(135deg, var(--accent), #6aa2ff);
+            border-color: transparent;
             color: #fff;
-            margin-top: 10px;
+            padding: 12px 22px;
+            font-size: 15px;
+            border-radius: 14px;
+        }
+
+        .footer-note {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        @media (max-width: 960px) {
+            body {
+                padding: 32px 20px 40px;
+            }
+
+            .top-nav {
+                position: static;
+                transform: none;
+                margin-bottom: 20px;
+            }
+
+            .panel {
+                margin-top: 0;
+            }
         }
     </style>
 </head>
 <body>
-    <h2>Settings</h2>
-    <h3>Custom Speed</h3>
-    <div id="rulesContainer"></div>
-    <button id="addRule">+</button>
-    <br>
-    <h3>Smart Skip</h3>
-    <label>
-        <input id="smartSkipToggle" type="checkbox"> Enable Smart Skip
-    </label>
-    <br>
-    <h3>Looping Mode</h3>
-    <label>
-        <input id="loopToggle" type="checkbox"> Looping Mode
-    </label>
-    <br>
-    <label id="loopResetContainer">
-        Seconds till "reset" <input id="loopReset" type="number" min="0" value="10">
-    </label>
-    <br>
-    <label id="loopHoldContainer">
-        Seconds held <input id="loopHold" type="number" min="0" value="5">
-    </label>
-    <br>
-    <label id="loopFollowContainer">
-        <input id="loopFollow" type="checkbox"> Follow up
-    </label>
-    <br>
-    <label id="skipContainer">
-        If No Video Playback is detected then skip after
-        <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
-    </label>
-    <br>
-    <h3>Simple Auto Skip</h3>
-    <label>
-        <input id="simpleSkipToggle" type="checkbox"> Enable Simple Auto Skip
-    </label>
-    <br>
-    <label id="simpleSkipDelayContainer">
-        Skip after <input id="simpleSkipDelay" type="number" min="0" value="5"> seconds
-    </label>
-    <br>
-    <h3>Site Overrides</h3>
-    <div id="siteRulesContainer"></div>
-    <button id="addSiteRule">+</button>
-    <br>
-    <h3>Buffer Between Videos</h3>
-    <label>
-        Buffer <input id="keyDelay" type="number" min="0" value="2"> seconds between videos
-    </label>
-    <br>
-    <h3>Scanning Mode</h3>
-    <label>
-        <input id="scanToggle" type="checkbox"> Scanning Mode
-    </label>
-    <br>
-    <label id="scanHotkeyContainer">
-        Shortcut <input id="scanHotkey" type="text" value="Ctrl+Shift+K">
-    </label>
-    <br>
-    <label id="scanDurationContainer">
-        Duration <input id="scanDuration" type="number" min="1" value="60"> seconds
-    </label>
-    <br>
-    <button id="saveSettings">Save</button>
+    <nav class="top-nav" aria-label="QA Assist navigation">
+        <a href="log.html">Event Log</a>
+        <a href="settings.html">Settings</a>
+        <a href="site-overrides.html">Site Overrides</a>
+        <a href="site-info.html">Site Info</a>
+    </nav>
+
+    <main class="panel">
+        <header class="panel-header">
+            <h1>QA Assist Settings</h1>
+            <p>Configure automation, playback, and scanning preferences. Changes are saved to sync storage so they travel with your QA Assist profile.</p>
+        </header>
+
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>Custom Speed</h2>
+                <button id="addRule" class="icon-button" type="button" aria-label="Add custom speed rule">+</button>
+            </div>
+            <p class="helper">Map event types to preferred playback speeds for consistent review tempo.</p>
+            <div id="rulesContainer" class="stack"></div>
+        </section>
+
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>Smart Skip</h2>
+            </div>
+            <label class="toggle-row">
+                <input id="smartSkipToggle" type="checkbox"> <span>Enable Smart Skip</span>
+            </label>
+            <label id="skipContainer" class="inline-input">
+                Skip when playback stalls after
+                <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
+            </label>
+        </section>
+
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>Looping Mode</h2>
+            </div>
+            <label class="toggle-row">
+                <input id="loopToggle" type="checkbox"> <span>Looping Mode</span>
+            </label>
+            <div class="stack">
+                <label id="loopResetContainer" class="inline-input">
+                    Seconds till "reset"
+                    <input id="loopReset" type="number" min="0" value="10">
+                </label>
+                <label id="loopHoldContainer" class="inline-input">
+                    Seconds held
+                    <input id="loopHold" type="number" min="0" value="5">
+                </label>
+                <label id="loopFollowContainer" class="toggle-row">
+                    <input id="loopFollow" type="checkbox"> <span>Follow up</span>
+                </label>
+            </div>
+        </section>
+
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>Simple Auto Skip</h2>
+            </div>
+            <label class="toggle-row">
+                <input id="simpleSkipToggle" type="checkbox"> <span>Enable Simple Auto Skip</span>
+            </label>
+            <label id="simpleSkipDelayContainer" class="inline-input">
+                Skip after
+                <input id="simpleSkipDelay" type="number" min="0" value="5"> seconds
+            </label>
+        </section>
+
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>Buffer Between Videos</h2>
+            </div>
+            <label class="inline-input">
+                Buffer
+                <input id="keyDelay" type="number" min="0" value="2"> seconds between videos
+            </label>
+        </section>
+
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>Site Overrides</h2>
+                <button id="addSiteRule" class="icon-button" type="button" aria-label="Add site override">+</button>
+            </div>
+            <p class="helper">Create domain-specific automation profiles. Overrides apply automatically when the active tab matches the configured pattern.</p>
+            <div id="siteRulesContainer" class="stack"></div>
+        </section>
+
+        <section class="settings-section">
+            <div class="section-header">
+                <h2>Scanning Mode</h2>
+            </div>
+            <label class="toggle-row">
+                <input id="scanToggle" type="checkbox"> <span>Enable Scanning Mode</span>
+            </label>
+            <label id="scanHotkeyContainer" class="inline-input">
+                Shortcut
+                <input id="scanHotkey" type="text" value="Ctrl+Shift+K">
+            </label>
+            <label id="scanDurationContainer" class="inline-input">
+                Duration
+                <input id="scanDuration" type="number" min="1" value="60"> seconds
+            </label>
+        </section>
+
+        <button id="saveSettings" type="button">Save Settings</button>
+        <p class="footer-note">Settings take effect immediately on the active tab when saved.</p>
+    </main>
+
     <script src="settings.js"></script>
 </body>
 </html>

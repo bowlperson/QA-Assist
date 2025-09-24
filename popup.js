@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const openOverridesButton = document.getElementById("openOverrides");
     const openSiteInfoButton = document.getElementById("openSiteInfo");
     const overrideBadge = document.getElementById("overrideBadge");
+    const openSettingsButton = document.getElementById("openSettings");
 
     const scanConfirmModal = document.getElementById("scanConfirm");
     const confirmScanButton = document.getElementById("confirmScan");
@@ -200,5 +201,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     openSiteInfoButton.addEventListener("click", () => {
         chrome.tabs.create({ url: chrome.runtime.getURL("site-info.html") });
+    });
+
+    openSettingsButton.addEventListener("click", () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL("settings.html") });
     });
 });

@@ -1,4 +1,4 @@
-// Enhanced log.js for Project Time Weaver
+// Enhanced log.js for QA Assist
 
 document.addEventListener("DOMContentLoaded", () => {
     const logTableBody = document.getElementById("logTableBody");
