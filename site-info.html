@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist - Site Info</title>
+    <link rel="stylesheet" href="styles/common.css">
+    <style>
+        .notes-cell {
+            color: #c4c8e6;
+            font-size: 13px;
+        }
+
+        .address-link {
+            color: #7ab8ff;
+        }
+
+        .address-link:hover {
+            color: #a4d4ff;
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <button data-nav-target="call-validation.html">Call Validation</button>
+        <button data-nav-target="settings.html">Settings</button>
+        <button data-nav-target="log.html">Event Log</button>
+        <button data-nav-target="site-info.html">Site Info</button>
+    </nav>
+    <main>
+        <section class="section-card">
+            <h2>Site Directory</h2>
+            <input type="text" id="siteSearch" class="filter-input" placeholder="Search sites by name or address">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Site Name</th>
+                            <th>Address</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="siteListBody"></tbody>
+                </table>
+            </div>
+            <div class="status-message" id="siteStatus"></div>
+        </section>
+    </main>
+    <script src="navigation.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            initNavigation('site-info.html');
+        });
+    </script>
+    <script src="site-info.js"></script>
+</body>
+</html>

@@ -4,6 +4,242 @@ let pressKey = "ArrowRight"; // Default key
 let autoPressNext = false; // Default to disabled
 let removeEyeTracker = false; // Default to disabled
 
+function normalizeValidationType(rawValue) {
+    if (!rawValue) {
+        return "";
+    }
+    const value = rawValue.toLowerCase();
+
+    if (value.indexOf("blocked") !== -1) {
+        return "Blocked";
+    }
+    if (value.indexOf("critical") !== -1) {
+        return "Critical";
+    }
+    if (value.indexOf("moderate") !== -1) {
+        return "Moderate";
+    }
+    if (value.indexOf("low") !== -1) {
+        return "3 Low/hr";
+    }
+    if (value.indexOf("cell") !== -1) {
+        return "Cellphone";
+    }
+    if (value.indexOf("non") !== -1 || value.indexOf("false") !== -1) {
+        return "False Positive";
+    }
+    if (value.indexOf("lost") !== -1 && value.indexOf("connection") !== -1) {
+        return "Lost Connection";
+    }
+    if (value.indexOf("disconnect") !== -1) {
+        return "Lost Connection";
+    }
+
+    return "";
+}
+
+function parseTimestampParts(timestamp) {
+    if (!timestamp) {
+        return {
+            dateISO: "",
+            dateDisplay: "",
+            hour: "",
+            minute: "",
+            seconds: "",
+            timeRaw: "",
+        };
+    }
+
+    const timeMatch = timestamp.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    let hour = "";
+    let minute = "";
+    let seconds = "";
+    let timeRaw = "";
+    if (timeMatch) {
+        hour = String(parseInt(timeMatch[1], 10) || 0);
+        minute = String(parseInt(timeMatch[2], 10) || 0);
+        seconds = typeof timeMatch[3] !== "undefined" ? String(parseInt(timeMatch[3], 10) || 0) : "";
+        timeRaw = timeMatch[0];
+    }
+
+    const dateMatch = timestamp.match(/(\d{4}-\d{2}-\d{2})|(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
+    let dateISO = "";
+    let dateDisplay = "";
+    if (dateMatch) {
+        const rawDate = dateMatch[0];
+        let year;
+        let month;
+        let day;
+
+        if (rawDate.indexOf("-") !== -1 && rawDate.length >= 8) {
+            const parts = rawDate.split("-");
+            if (parts[0].length === 4) {
+                year = parseInt(parts[0], 10);
+                month = parseInt(parts[1], 10);
+                day = parseInt(parts[2], 10);
+            } else {
+                month = parseInt(parts[0], 10);
+                day = parseInt(parts[1], 10);
+                year = parseInt(parts[2], 10);
+            }
+        } else {
+            const parts = rawDate.split(/[\/\-]/);
+            month = parseInt(parts[0], 10);
+            day = parseInt(parts[1], 10);
+            const rawYear = parts[2];
+            year = rawYear.length === 2 ? 2000 + parseInt(rawYear, 10) : parseInt(rawYear, 10);
+        }
+
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+            const monthStr = month < 10 ? "0" + month : String(month);
+            const dayStr = day < 10 ? "0" + day : String(day);
+            dateISO = year + "-" + monthStr + "-" + dayStr;
+            dateDisplay = month + "/" + day + "/" + year;
+        }
+    }
+
+    return {
+        dateISO,
+        dateDisplay,
+        hour,
+        minute,
+        seconds,
+        timeRaw,
+    };
+}
+
+function findValueByLabel(container, regex) {
+    if (!container) {
+        return "";
+    }
+
+    const elements = container.querySelectorAll("label, span, div, dt, dd, th, td, strong, p");
+    for (let i = 0; i < elements.length; i += 1) {
+        const element = elements[i];
+        const text = (element.textContent || "").trim();
+        if (!text) {
+            continue;
+        }
+
+        if (regex.test(text)) {
+            const directParts = text.split(/[:：]/);
+            if (directParts.length > 1) {
+                const candidate = directParts.slice(1).join(":").trim();
+                if (candidate && !regex.test(candidate)) {
+                    return candidate;
+                }
+            }
+
+            const next = element.nextElementSibling;
+            if (next) {
+                const nextText = (next.textContent || "").trim();
+                if (nextText && !regex.test(nextText)) {
+                    return nextText;
+                }
+            }
+
+            const parent = element.parentElement;
+            if (parent) {
+                const siblings = parent.children;
+                for (let j = 0; j < siblings.length; j += 1) {
+                    const sibling = siblings[j];
+                    if (sibling === element) {
+                        continue;
+                    }
+                    const siblingText = (sibling.textContent || "").trim();
+                    if (siblingText && !regex.test(siblingText)) {
+                        return siblingText;
+                    }
+                }
+            }
+        }
+    }
+
+    return "";
+}
+
+function extractValidationTypeFromContainer(container, eventType) {
+    if (!container) {
+        return "";
+    }
+
+    const selectors = [
+        "[data-field='validation_type']",
+        "[data-field='validationType']",
+        ".field-validation_type",
+        ".validation-type",
+        "[data-label='Validation Type']",
+        "[aria-label='Validation Type']",
+    ];
+
+    for (let i = 0; i < selectors.length; i += 1) {
+        const element = container.querySelector(selectors[i]);
+        if (element) {
+            const text = (element.textContent || "").trim();
+            if (text) {
+                return text;
+            }
+        }
+    }
+
+    const dataAttribute = container.getAttribute && container.getAttribute("data-validation-type");
+    if (dataAttribute) {
+        return dataAttribute.trim();
+    }
+
+    const labelledValue = findValueByLabel(container, /validation\s*type/i);
+    if (labelledValue) {
+        return labelledValue;
+    }
+
+    if (container !== document.body && container !== document) {
+        const parentLabelledValue = findValueByLabel(document.body, /validation\s*type/i);
+        if (parentLabelledValue) {
+            return parentLabelledValue;
+        }
+    }
+
+    if (eventType) {
+        return eventType;
+    }
+
+    return "";
+}
+
+function deriveSiteName() {
+    const explicit = findValueByLabel(document.body, /site\s*name/i);
+    if (explicit) {
+        return explicit;
+    }
+
+    if (typeof window !== "undefined" && window.location && window.location.hostname) {
+        return window.location.hostname;
+    }
+
+    return "";
+}
+
+function storeLatestEventDetails(eventData, validationDetails, timestampParts) {
+    const latestEventDetails = {
+        eventType: eventData.eventType,
+        timestamp: eventData.timestamp,
+        pageUrl: eventData.pageUrl,
+        truckNumber: eventData.truckNumber,
+        equipmentNumber: eventData.truckNumber,
+        siteName: deriveSiteName(),
+        validationTypeRaw: validationDetails.raw,
+        validationType: validationDetails.normalized,
+        dateISO: timestampParts.dateISO,
+        dateDisplay: timestampParts.dateDisplay,
+        eventTimeHr: timestampParts.hour,
+        eventTimeMin: timestampParts.minute,
+        seconds: timestampParts.seconds,
+        timeRaw: timestampParts.timeRaw,
+    };
+
+    chrome.storage.local.set({ latestEventDetails });
+}
+
 // Function to store event data from the selected row
 function saveEventData(video) {
     let allRows = document.querySelectorAll(".gvEventListItemPadding");
@@ -15,6 +251,7 @@ function saveEventData(video) {
     let timestamp = "";
     let pageUrl = window.location.href;
     let isLastCell = false;
+    let containerForValidation = null;
 
     if (isHideTracking) {
         // Get the selected container within hide-tracking
@@ -31,6 +268,7 @@ function saveEventData(video) {
                 timestamp = timestampElement.textContent.trim();
             }
 
+            containerForValidation = selectedItem;
             console.log("📌 Logging event from hide-tracking video (selected item):", { eventType, timestamp, pageUrl });
         } else {
             console.warn("⚠️ No selected item found for hide-tracking video.");
@@ -55,13 +293,26 @@ function saveEventData(video) {
             timestamp = timestampElement.textContent.trim();
         }
 
+        containerForValidation = selectedRow;
         console.log("📌 Logging event from normal video:", { eventType, truckNumber, timestamp, pageUrl, isLastCell });
     } else {
         console.warn("⚠️ No selected row found for event logging.");
         return false;
     }
 
-    let eventData = { eventType, truckNumber, timestamp, pageUrl, isLastCell };
+    const rawValidation = extractValidationTypeFromContainer(containerForValidation || document.body, eventType);
+    const normalizedValidation = normalizeValidationType(rawValidation);
+    const timestampParts = parseTimestampParts(timestamp);
+
+    let eventData = {
+        eventType,
+        truckNumber,
+        timestamp,
+        pageUrl,
+        isLastCell,
+        validationTypeRaw: rawValidation,
+        validationType: normalizedValidation,
+    };
 
     chrome.storage.local.get("eventLogs", function (data) {
         let logs = data.eventLogs || [];
@@ -70,6 +321,8 @@ function saveEventData(video) {
         chrome.storage.local.set({ eventLogs: logs });
         console.log("📌 Event logged successfully:", eventData);
     });
+
+    storeLatestEventDetails(eventData, { raw: rawValidation, normalized: normalizedValidation }, timestampParts);
 
     return isLastCell;
 }

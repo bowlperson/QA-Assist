@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist - Call Validation</title>
+    <link rel="stylesheet" href="styles/common.css">
+    <style>
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .button-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .button-row button {
+            flex: 1 1 160px;
+        }
+
+        .confirm-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .confirm-card {
+            background-color: #2c3244;
+            border: 1px solid #3f465d;
+            border-radius: 8px;
+            padding: 24px;
+            max-width: 360px;
+            text-align: center;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        }
+
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .table-empty {
+            text-align: center;
+            padding: 18px;
+            color: #9aa0bb;
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <button data-nav-target="call-validation.html">Call Validation</button>
+        <button data-nav-target="settings.html">Settings</button>
+        <button data-nav-target="log.html">Event Log</button>
+        <button data-nav-target="site-info.html">Site Info</button>
+    </nav>
+    <main>
+        <section class="section-card">
+            <h2>Call Validation Entry</h2>
+            <div class="form-grid">
+                <div>
+                    <label for="callDate">Event Date</label>
+                    <input type="date" id="callDate">
+                </div>
+                <div>
+                    <label for="eventTime">Event Time (HH:MM:SS)</label>
+                    <input type="text" id="eventTime" placeholder="01:26:16">
+                </div>
+                <div>
+                    <label for="firstCallTime">1st Call Time (HH:MM)</label>
+                    <input type="text" id="firstCallTime" placeholder="01:30">
+                </div>
+                <div>
+                    <label for="secondCallTime">2nd Call Time (HH:MM)</label>
+                    <input type="text" id="secondCallTime" placeholder="01:45">
+                </div>
+                <div>
+                    <label for="thirdCallTime">3rd Call Time (HH:MM)</label>
+                    <input type="text" id="thirdCallTime" placeholder="02:10">
+                </div>
+                <div>
+                    <label for="siteName">Site Name</label>
+                    <input type="text" id="siteName" placeholder="Site name">
+                </div>
+                <div>
+                    <label for="equipmentNumber">Equipment Number</label>
+                    <input type="text" id="equipmentNumber" placeholder="Unit / Truck number">
+                </div>
+                <div>
+                    <label for="validationType">Validation Type</label>
+                    <select id="validationType">
+                        <option value="">Select validation...</option>
+                        <option value="Blocked">Blocked</option>
+                        <option value="Critical">Critical</option>
+                        <option value="Moderate">Moderate</option>
+                        <option value="3 Low/hr">3 Low/hr</option>
+                        <option value="Cellphone">Cellphone</option>
+                        <option value="False Positive">False Positive</option>
+                        <option value="Lost Connection">Lost Connection</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="monitorName">Monitor Name</label>
+                    <input type="text" id="monitorName" placeholder="Your name">
+                </div>
+                <div>
+                    <label for="contact">Contact</label>
+                    <input type="text" id="contact" placeholder="Phone / Radio">
+                </div>
+                <div>
+                    <label for="receptor">Receptor</label>
+                    <input type="text" id="receptor" placeholder="Who answered">
+                </div>
+            </div>
+            <div class="button-row">
+                <button class="secondary" id="loadLatest">Load Latest Event</button>
+                <button class="secondary" id="clearForm">Clear Form</button>
+                <button class="primary" id="saveCall">Save Call</button>
+            </div>
+            <div class="status-message" id="formStatus"></div>
+        </section>
+
+        <section class="section-card">
+            <div class="section-header" style="justify-content: space-between; align-items: center;">
+                <h2>Saved Call Validations</h2>
+                <button class="secondary" id="copyAll">Copy Latest Row</button>
+            </div>
+            <div class="table-container">
+                <table id="callValidationTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Event Time HR</th>
+                            <th>Event Time MIN</th>
+                            <th>1st Call HR</th>
+                            <th>1st Call MIN</th>
+                            <th>2nd Call HR</th>
+                            <th>2nd Call MIN</th>
+                            <th>3rd Call HR</th>
+                            <th>3rd Call MIN</th>
+                            <th>Site Name</th>
+                            <th>Equipment Number</th>
+                            <th>Validation Type</th>
+                            <th>Monitor Name</th>
+                            <th>Contact</th>
+                            <th>Receptor</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="callValidationBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <div id="validationConfirm" class="confirm-overlay hidden">
+        <div class="confirm-card">
+            <p id="confirmText">Is this the correct validation type?</p>
+            <div class="confirm-buttons">
+                <button id="confirmYes" class="primary">Yes</button>
+                <button id="confirmNo" class="secondary">No</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="navigation.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            initNavigation('call-validation.html');
+        });
+    </script>
+    <script src="call-validation.js"></script>
+</body>
+</html>
