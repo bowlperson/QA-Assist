@@ -1,28 +1,35 @@
 let isEnabled = false;
-let playbackSpeed = 1.0; // Default to 1x speed
-let pressKey = "ArrowRight"; // Default key
-let autoPressNext = false; // Default to disabled
-let removeEyeTracker = false; // Default to disabled
+let playbackSpeed = 1.0;
+let pressKey = "ArrowRight";
+let autoPressNext = false;
+let removeEyeTracker = false;
+let activeOverride = null;
+const processedEventKeys = new Set();
+let mutationObserver = null;
 
-// Function to store event data from the selected row
-function saveEventData(video) {
-    let allRows = document.querySelectorAll(".gvEventListItemPadding");
-    let selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
-    let isHideTracking = video.closest(".videos.hide-tracking") !== null; // Check if the video is inside hide-tracking
+function getPageUrl() {
+    return window.location.href.split("#")[0];
+}
+
+function collectEventDetails(video) {
+    const allRows = document.querySelectorAll(".gvEventListItemPadding");
+    const selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
+    const isHideTracking = video.closest(".videos.hide-tracking") !== null;
 
     let eventType = "";
-    let truckNumber = ""; // Leave blank for hide-tracking
+    let truckNumber = "";
     let timestamp = "";
-    let pageUrl = window.location.href;
+    let eventId = "";
+    const pageUrl = getPageUrl();
     let isLastCell = false;
 
     if (isHideTracking) {
-        // Get the selected container within hide-tracking
-        let selectedItem = document.querySelector(".item.selected");
+        const selectedItem = document.querySelector(".item.selected");
 
         if (selectedItem) {
-            let eventTypeElement = selectedItem.querySelector("label.field-event_type");
-            let timestampElement = selectedItem.querySelector("label.field-created_at");
+            const eventTypeElement = selectedItem.querySelector("label.field-event_type");
+            const timestampElement = selectedItem.querySelector("label.field-created_at");
+            const eventIdElement = selectedItem.querySelector("label.field-eventid, label.field-event_id");
 
             if (eventTypeElement) {
                 eventType = eventTypeElement.textContent.trim();
@@ -30,178 +37,327 @@ function saveEventData(video) {
             if (timestampElement) {
                 timestamp = timestampElement.textContent.trim();
             }
-
-            console.log("📌 Logging event from hide-tracking video (selected item):", { eventType, timestamp, pageUrl });
-        } else {
-            console.warn("⚠️ No selected item found for hide-tracking video.");
+            if (eventIdElement) {
+                eventId = eventIdElement.textContent.trim();
+            }
         }
     } else if (selectedRow) {
-        // Normal gvVideo.controllerless logging
         isLastCell = selectedRow === allRows[allRows.length - 1];
 
-        let eventTypeElement = selectedRow.querySelector(".gvEventListItemRight[style*='color']");
-        let truckNumberElements = selectedRow.querySelectorAll(".gvEventListItemLeft");
-        let timestampElement = selectedRow.querySelector(".gvEventListItemRight[style*='width: 90%']");
+        const eventTypeElement = selectedRow.querySelector(".gvEventListItemRight[style*='color']");
+        const truckNumberElements = selectedRow.querySelectorAll(".gvEventListItemLeft");
+        const timestampElement = selectedRow.querySelector(".gvEventListItemRight[style*='width: 90%']");
 
-        let truckNumberElement = (truckNumberElements.length > 1) ? truckNumberElements[1] : null;
-
+        if (truckNumberElements.length > 0) {
+            eventId = (truckNumberElements[0]?.textContent || "").trim();
+        }
+        if (truckNumberElements.length > 1) {
+            truckNumber = (truckNumberElements[1]?.textContent || "").trim();
+        }
         if (eventTypeElement) {
             eventType = eventTypeElement.textContent.trim();
-        }
-        if (truckNumberElement) {
-            truckNumber = truckNumberElement.textContent.trim();
         }
         if (timestampElement) {
             timestamp = timestampElement.textContent.trim();
         }
-
-        console.log("📌 Logging event from normal video:", { eventType, truckNumber, timestamp, pageUrl, isLastCell });
     } else {
         console.warn("⚠️ No selected row found for event logging.");
-        return false;
+        return null;
     }
 
-    let eventData = { eventType, truckNumber, timestamp, pageUrl, isLastCell };
+    const eventData = {
+        eventType,
+        truckNumber,
+        timestamp,
+        pageUrl,
+        isLastCell,
+        eventId,
+    };
 
-    chrome.storage.local.get("eventLogs", function (data) {
-        let logs = data.eventLogs || [];
-        logs.push(eventData);
-
-        chrome.storage.local.set({ eventLogs: logs });
-        console.log("📌 Event logged successfully:", eventData);
-    });
-
-    return isLastCell;
+    return eventData;
 }
 
-
-
-// Function to simulate key press on the active element
-function pressKeyEvent(key) {
-    console.log(`⌨️ Pressing ${key} key...`);
-    
-    let eventDown = new KeyboardEvent("keydown", {
-        key: key,
-        code: key,
-        keyCode: key === "ArrowRight" ? 39 : 40,
-        which: key === "ArrowRight" ? 39 : 40,
-        bubbles: true,
-        cancelable: true
-    });
-
-    let eventUp = new KeyboardEvent("keyup", {
-        key: key,
-        code: key,
-        keyCode: key === "ArrowRight" ? 39 : 40,
-        which: key === "ArrowRight" ? 39 : 40,
-        bubbles: true,
-        cancelable: true
-    });
-
-    let targetElement = document.activeElement || document;
-    console.log("📩 Dispatching key events to:", targetElement);
-
-    targetElement.dispatchEvent(eventDown);
-    setTimeout(() => {
-        targetElement.dispatchEvent(eventUp);
-        console.log(`✔️ Key press event completed: ${key}`);
-    }, 100);
-}
-
-// Function to apply playback speed
-function applyPlaybackSpeed(video) {
-    if (video) {
-        video.playbackRate = playbackSpeed;
-        console.log(`⚡ Playback speed set to ${playbackSpeed}x for`, video);
+function createEventKey(eventData) {
+    if (!eventData) {
+        return "";
     }
+
+    const keyParts = [
+        eventData.eventId || "",
+        eventData.eventType || "",
+        eventData.truckNumber || "",
+        eventData.timestamp || "",
+        eventData.pageUrl || "",
+    ];
+
+    return keyParts.map((part) => String(part || "").trim().toLowerCase()).join("|");
 }
 
-// Function to remove Eye Tracker canvas whenever a video is detected
-function removeEyeTrackerElement() {
-    let eyeTrackerCanvas = document.querySelector("canvas.gvCvDetailViewer");
-    if (eyeTrackerCanvas) {
-        eyeTrackerCanvas.remove();
-        console.log("✅ Eye Tracker removed.");
-    } else {
-        console.log("⚠️ No Eye Tracker found.");
-    }
+function resolveSiteName(pageUrl) {
+    return new Promise((resolve) => {
+        chrome.storage.sync.get("siteInfo", (data) => {
+            const siteInfo = Array.isArray(data.siteInfo) ? data.siteInfo : [];
+
+            let siteName = "";
+            let siteMatchValue = "";
+
+            if (pageUrl) {
+                try {
+                    const url = new URL(pageUrl);
+                    const host = url.hostname.toLowerCase();
+
+                    const matchedEntry = siteInfo.find((entry) => {
+                        if (!entry) {
+                            return false;
+                        }
+                        const matchValue = (entry.matchValue || "").toLowerCase();
+                        if (!matchValue) {
+                            return false;
+                        }
+                        return host === matchValue || host.endsWith(`.${matchValue}`) || pageUrl.includes(matchValue);
+                    });
+
+                    if (matchedEntry) {
+                        siteName = matchedEntry.name || "";
+                        siteMatchValue = matchedEntry.matchValue || "";
+                    }
+                } catch (error) {
+                    console.warn("Unable to parse page URL for site lookup", error);
+                }
+            }
+
+            resolve({ siteName: siteName.trim(), siteMatchValue });
+        });
+    });
 }
 
-// Monitor video elements and store event data
-function monitorVideos() {
-    console.log("🔍 Running video monitor check...");
-
-    // Select both types of video elements
-    let videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
-
-    if (videos.length === 0) {
-        console.warn("⚠️ No target videos found.");
+function registerEventLog(eventData) {
+    if (!eventData) {
         return;
     }
 
-    videos.forEach(video => {
-        if (!video.dataset.listenerAdded) {
-            console.log("🎥 Target video detected:", video);
+    const eventKey = createEventKey(eventData);
+    if (!eventKey) {
+        return;
+    }
 
-            // Log event details based on video type
-            let isLastCell = saveEventData(video);
+    if (processedEventKeys.has(eventKey)) {
+        console.log("🔁 Duplicate event detected in-session. Skipping log entry.", eventData);
+        return;
+    }
 
-            // Apply the stored playback speed immediately
-            applyPlaybackSpeed(video);
+    processedEventKeys.add(eventKey);
 
-            // If Remove Eye Tracker is enabled, check and remove it every time a video is detected
-            if (removeEyeTracker) {
-                removeEyeTrackerElement();
+    resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
+        const enrichedEvent = {
+            ...eventData,
+            siteName,
+            siteMatchValue,
+            createdAt: new Date().toISOString(),
+            callHistory: [],
+            eventKey,
+            id: generateLogId(),
+        };
+
+        chrome.storage.local.get("eventLogs", (data) => {
+            const logs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
+            const alreadyExists = logs.some((log) => createEventKey(log) === eventKey);
+
+            if (alreadyExists) {
+                console.log("🛑 Duplicate event detected in storage. Skipping log entry.", enrichedEvent);
+                return;
             }
 
-            video.addEventListener("play", () => {
-                console.log("✅ Video playing detected");
-                applyPlaybackSpeed(video);
-            });
-
-            video.addEventListener("ended", () => {
-                if (isEnabled) {
-                    console.log("🎬 Video ended.");
-
-                    // Always press the Down Arrow first
-                    console.log("⬇️ Pressing Down Arrow immediately.");
-                    pressKeyEvent("ArrowDown");
-
-                    // Only press Right Arrow if "Auto Press Next List" is enabled and it's the last cell
-                    chrome.storage.sync.get("autoPressNext", function (data) {
-                        if (data.autoPressNext && isLastCell) {
-                            console.log("⏳ Waiting 2 seconds before pressing Right Arrow...");
-                            setTimeout(() => {
-                                console.log("➡️ Pressing Right Arrow after delay.");
-                                pressKeyEvent("ArrowRight");
-                            }, 2000);
-                        } else if (!data.autoPressNext) {
-                            console.log("🚫 Auto Press Next List is disabled. Right Arrow will not be pressed.");
-                        }
-                    });
-                }
-            }, { once: true });
-
-            video.dataset.listenerAdded = "true";
-        }
+            logs.push(enrichedEvent);
+            chrome.storage.local.set({ eventLogs: logs });
+            console.log("📌 Event logged successfully:", enrichedEvent);
+        });
     });
 }
 
+function generateLogId() {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
 
+    return `event-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
 
-// MutationObserver to detect dynamically loaded videos
+function pressKeyEvent(key) {
+    const eventDown = new KeyboardEvent("keydown", {
+        key,
+        code: key,
+        keyCode: key === "ArrowRight" ? 39 : key === "ArrowDown" ? 40 : undefined,
+        which: key === "ArrowRight" ? 39 : key === "ArrowDown" ? 40 : undefined,
+        bubbles: true,
+        cancelable: true,
+    });
+
+    const eventUp = new KeyboardEvent("keyup", {
+        key,
+        code: key,
+        keyCode: key === "ArrowRight" ? 39 : key === "ArrowDown" ? 40 : undefined,
+        which: key === "ArrowRight" ? 39 : key === "ArrowDown" ? 40 : undefined,
+        bubbles: true,
+        cancelable: true,
+    });
+
+    const targetElement = document.activeElement || document;
+    targetElement.dispatchEvent(eventDown);
+    setTimeout(() => targetElement.dispatchEvent(eventUp), 100);
+}
+
+function applyPlaybackSpeed(video) {
+    if (video) {
+        video.playbackRate = playbackSpeed;
+    }
+}
+
+function removeEyeTrackerElement() {
+    const eyeTrackerCanvas = document.querySelector("canvas.gvCvDetailViewer");
+    if (eyeTrackerCanvas) {
+        eyeTrackerCanvas.remove();
+        console.log("✅ Eye Tracker removed.");
+    }
+}
+
+function monitorVideos() {
+    const videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+    if (!videos.length) {
+        return;
+    }
+
+    videos.forEach((video) => {
+        if (video.dataset.listenerAdded) {
+            return;
+        }
+
+        const eventData = collectEventDetails(video);
+        if (eventData) {
+            registerEventLog(eventData);
+        }
+
+        applyPlaybackSpeed(video);
+
+        if (removeEyeTracker) {
+            removeEyeTrackerElement();
+        }
+
+        video.addEventListener("play", () => applyPlaybackSpeed(video));
+
+        video.addEventListener(
+            "ended",
+            () => {
+                if (!isEnabled) {
+                    return;
+                }
+
+                pressKeyEvent("ArrowDown");
+
+                chrome.storage.sync.get("autoPressNext", (data) => {
+                    const shouldAutoPress = data.autoPressNext ?? autoPressNext;
+                    if (shouldAutoPress && eventData?.isLastCell) {
+                        setTimeout(() => pressKeyEvent("ArrowRight"), 2000);
+                    }
+                });
+            },
+            { once: true },
+        );
+
+        video.dataset.listenerAdded = "true";
+    });
+}
+
 function monitorForNewVideos() {
-    console.log("🔄 Starting MutationObserver for new videos...");
-    
-    const observer = new MutationObserver(() => {
-        console.log("🔍 Checking for newly added videos...");
+    if (mutationObserver) {
+        return;
+    }
+
+    mutationObserver = new MutationObserver(() => {
         monitorVideos();
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
 }
 
-// Listen for messages from the popup (updates speed, key, toggles)
+function findOverrideForUrl(url, overrides) {
+    if (!url || !Array.isArray(overrides)) {
+        return null;
+    }
+
+    let host = "";
+    try {
+        host = new URL(url).hostname.toLowerCase();
+    } catch (error) {
+        host = url;
+    }
+
+    return (
+        overrides.find((override) => {
+            if (!override || !override.pattern) {
+                return false;
+            }
+
+            const pattern = String(override.pattern).toLowerCase();
+            return host === pattern || host.endsWith(`.${pattern}`) || url.toLowerCase().includes(pattern);
+        }) || null
+    );
+}
+
+function applyOverrideSettings(override) {
+    if (!override) {
+        activeOverride = null;
+        return;
+    }
+
+    activeOverride = override;
+
+    if (override.overridePlaybackSpeed && override.playbackSpeed) {
+        playbackSpeed = parseFloat(override.playbackSpeed) || playbackSpeed;
+    }
+
+    if (override.overridePressKey && override.pressKey) {
+        pressKey = override.pressKey;
+    }
+
+    if (typeof override.autoPressNext === "boolean") {
+        autoPressNext = override.autoPressNext;
+    }
+
+    if (typeof override.removeEyeTracker === "boolean") {
+        removeEyeTracker = override.removeEyeTracker;
+    }
+
+    if (typeof override.enableScanning === "boolean") {
+        isEnabled = override.enableScanning;
+    }
+}
+
+function loadSettingsAndInitialize() {
+    chrome.storage.sync.get(
+        ["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "siteOverrides"],
+        (data) => {
+            isEnabled = data.enabled || false;
+            playbackSpeed = parseFloat(data.playbackSpeed) || 1.0;
+            pressKey = data.pressKey || "ArrowDown";
+            autoPressNext = data.autoPressNext ?? false;
+            removeEyeTracker = data.removeEyeTracker ?? false;
+
+            const override = findOverrideForUrl(window.location.href, data.siteOverrides || []);
+            applyOverrideSettings(override);
+
+            if (isEnabled) {
+                monitorVideos();
+                monitorForNewVideos();
+            }
+
+            if (removeEyeTracker) {
+                removeEyeTrackerElement();
+            }
+        },
+    );
+}
+
 chrome.runtime.onMessage.addListener((request) => {
     if (request.enabled !== undefined) {
         isEnabled = request.enabled;
@@ -213,13 +369,10 @@ chrome.runtime.onMessage.addListener((request) => {
 
     if (request.autoPressNext !== undefined) {
         autoPressNext = request.autoPressNext;
-        console.log("🔄 Auto Press Next List updated:", autoPressNext);
     }
 
     if (request.removeEyeTracker !== undefined) {
         removeEyeTracker = request.removeEyeTracker;
-        console.log("👀 Remove Eye Tracker updated:", removeEyeTracker);
-        
         if (removeEyeTracker) {
             removeEyeTrackerElement();
         }
@@ -227,34 +380,18 @@ chrome.runtime.onMessage.addListener((request) => {
 
     if (request.playbackSpeed && playbackSpeed !== parseFloat(request.playbackSpeed)) {
         playbackSpeed = parseFloat(request.playbackSpeed);
-        console.log("⚡ Updating playback speed to:", playbackSpeed);
-        
-        let videos = document.querySelectorAll("video.gvVideo.controllerless");
-        videos.forEach(video => applyPlaybackSpeed(video));
+        const videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+        videos.forEach((video) => applyPlaybackSpeed(video));
     }
 
     if (request.pressKey && pressKey !== request.pressKey) {
         pressKey = request.pressKey;
-        console.log("🔑 Key press updated to: " + pressKey);
+    }
+
+    if (request.siteOverrides) {
+        const override = findOverrideForUrl(window.location.href, request.siteOverrides);
+        applyOverrideSettings(override);
     }
 });
 
-// Load settings on startup and check for videos
-chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker"], function (data) {
-    isEnabled = data.enabled || false;
-    playbackSpeed = parseFloat(data.playbackSpeed) || 1.0; // Default to 1x speed
-    pressKey = data.pressKey || "ArrowDown"; // Default key is now Down Arrow
-    autoPressNext = data.autoPressNext ?? false; // Default to disabled
-    removeEyeTracker = data.removeEyeTracker ?? false; // Default to disabled
-
-    console.log("⚙️ Extension loaded with settings: Enabled=" + isEnabled + ", Speed=" + playbackSpeed + "x, Key=" + pressKey + ", Auto Press Next=" + autoPressNext + ", Remove Eye Tracker=" + removeEyeTracker);
-
-    if (isEnabled) {
-        monitorVideos();
-        monitorForNewVideos();
-    }
-
-    if (removeEyeTracker) {
-        removeEyeTrackerElement();
-    }
-});
+loadSettingsAndInitialize();
