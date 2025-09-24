@@ -6,13 +6,13 @@ Vickery	http://10.136.0.11/
 Tarrawonga	https://10.136.0.10/			
 New Acland	http://172.25.10.254/
 
-Essakane	http://10.3.5.105/			
-Comliog	http://10.9.1.167/			
-Gac	http://10.20.7.11/			
-Maules Creek	http://10.20.250.1/			
-Vickery	http://10.136.0.11/			
-Tarrawonga	https://10.136.0.10/			
-New Acland	http://172.25.10.254/	
+Mogalakwena	10.196.206.172			
+Otjikoto	https://otjikoto.hexagonmining.com/			
+Rossing	https://rossing.hexagonmining.com/			
+Mafube	10.199.35.20			
+Khwezela	https://10.199.138.20/			
+Isibonelo	https://10.199.42.20/			
+Lumwana	10.191.63.2			
 
 Mission	https://mission.hexagonmining.com			
 Silverbell	https://silverbell.hexagonmining.com/			
@@ -22,13 +22,9 @@ Gahcho Kue	http://10.20.7.50/opweb/
 Kosse	https://kosse.hexagonmining.com/			
 Coal Valley	https://coalvalley.hexagonmining.com/	
 
-Mission	https://mission.hexagonmining.com			
-Silverbell	https://silverbell.hexagonmining.com/			
-Ray	https://ray.hexagonmining.com/			
-Bald Mountain	http://10.36.36.250/			
-Gahcho Kue	http://10.20.7.50/opweb/			
-Kosse	https://kosse.hexagonmining.com/			
-Coal Valley	https://coalvalley.hexagonmining.com/	
+Fort Hills	http://10.146.129.85/			
+USG	https://plastercity.hexagonmining.com/			
+Quintette	https://quintette.hexagonmining.com/			
 
 Rixs Creek	https://vpn-rixscreek.hexagonmining.com/			
 Boggabri	(10.130.181.46) Boggabri > Access & Connection			
