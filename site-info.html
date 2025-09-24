@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist · Site Info</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #090d14;
+            --card: #131927;
+            --border: #1f2738;
+            --text: #f4f6ff;
+            --muted: #8e99b9;
+            --accent: #4c8dff;
+            --accent-soft: rgba(76, 141, 255, 0.15);
+            --danger: #ff5c8d;
+            --success: #3dd68c;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 36px 40px 48px;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(160deg, rgba(76, 141, 255, 0.08), transparent 55%), var(--bg);
+            color: var(--text);
+        }
+
+        .nav-bar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+        }
+
+        .nav-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+        }
+
+        .nav-link.active {
+            color: #fff;
+            border-color: rgba(76, 141, 255, 0.35);
+            background: linear-gradient(135deg, rgba(76, 141, 255, 0.32), rgba(17, 21, 34, 0.85));
+            box-shadow: 0 18px 36px rgba(76, 141, 255, 0.28);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 30px;
+            letter-spacing: 0.02em;
+        }
+
+        p {
+            color: var(--muted);
+            font-size: 15px;
+            margin: 10px 0 26px;
+            max-width: 680px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            padding: 28px;
+            margin-bottom: 28px;
+            box-shadow: 0 40px 70px rgba(0, 0, 0, 0.35);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--muted);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th,
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: left;
+        }
+
+        th {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 12px;
+        }
+
+        tbody tr:hover {
+            background: rgba(76, 141, 255, 0.07);
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            border: none;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, var(--accent), #6aa2ff);
+            color: #fff;
+            box-shadow: 0 12px 24px rgba(76, 141, 255, 0.35);
+        }
+
+        button.ghost {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--muted);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        button.danger {
+            background: rgba(255, 92, 141, 0.12);
+            color: var(--danger);
+            border: 1px solid rgba(255, 92, 141, 0.35);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(10, 14, 22, 0.85);
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .form-footer {
+            margin-top: 18px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--muted);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: rgba(11, 15, 25, 0.9);
+            padding: 14px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: var(--text);
+            font-size: 13px;
+            display: none;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-bar">
+        <a class="nav-link" href="log.html">Event Log</a>
+        <a class="nav-link" href="settings.html">Settings</a>
+        <a class="nav-link active" href="site-info.html">Site Info</a>
+        <a class="nav-link" href="site-overrides.html">Site Overrides</a>
+    </nav>
+    <header>
+        <h1>QA Assist — Site Info</h1>
+        <p>Manage the site aliases used across QA Assist. Each entry maps a human-readable site name to the address or IP detected in the event logs.</p>
+    </header>
+
+    <section class="card">
+        <div class="card-header">
+            <h2>Saved Sites</h2>
+            <span class="tag" id="siteCount">0 sites</span>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Address</th>
+                        <th>Match Value</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="siteTableBody">
+                    <tr class="empty-state">
+                        <td colspan="4">No sites have been added yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-header">
+            <h2>Add Site</h2>
+            <span class="tag">New entry</span>
+        </div>
+        <div class="form-grid">
+            <div>
+                <label for="siteNameInput">Site Name</label>
+                <input type="text" id="siteNameInput" placeholder="e.g., Maules Creek">
+            </div>
+            <div>
+                <label for="siteAddressInput">Address / URL</label>
+                <input type="text" id="siteAddressInput" placeholder="e.g., http://10.20.250.1/">
+            </div>
+        </div>
+        <div class="form-footer">
+            <button class="ghost" id="clearForm">Clear</button>
+            <button class="primary" id="addSite">Add Site</button>
+        </div>
+    </section>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="site-info.js"></script>
+</body>
+</html>
