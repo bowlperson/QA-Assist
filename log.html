@@ -1,164 +1,498 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UFC-8">
-    <title>Event Log</title>
+    <meta charset="UTF-8">
+    <title>Project Time Weaver · Event Log</title>
     <style>
+        :root {
+            color-scheme: dark;
+            --bg: #0b0e16;
+            --card: #141a27;
+            --border: #1e2636;
+            --text: #eef1ff;
+            --muted: #8793b2;
+            --accent: #4c8dff;
+            --accent-soft: rgba(76, 141, 255, 0.18);
+            --danger: #ff5c8d;
+            --success: #38d98a;
+            --overlay: rgba(5, 9, 16, 0.78);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background-color: #222;
-            color: #fff;
-            padding: 20px;
+            margin: 0;
+            background: linear-gradient(180deg, rgba(76, 141, 255, 0.12), transparent), var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            padding: 32px 36px 48px;
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 28px;
+            letter-spacing: 0.02em;
         }
 
         h2 {
             margin: 0;
+            font-size: 20px;
+        }
+
+        p {
+            color: var(--muted);
+            margin: 4px 0 16px;
+        }
+
+        .header {
+            margin-bottom: 28px;
+        }
+
+        .section {
+            background: var(--card);
+            border-radius: 18px;
+            padding: 24px;
+            margin-bottom: 32px;
+            border: 1px solid var(--border);
+            box-shadow: 0 32px 60px rgba(0, 0, 0, 0.35);
         }
 
         .section-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 10px 0;
+            justify-content: space-between;
+            margin-bottom: 18px;
         }
 
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
-
-        #clearLogs,
-        #exportCSV {
-            background-color: #cc0000;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        .section-header span {
+            color: var(--muted);
             font-size: 14px;
-            padding: 8px 12px;
         }
 
-        #exportCSV {
-            background-color: #007bff;
+        .controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            margin-bottom: 18px;
         }
 
-        #clearLogs:hover {
-            background-color: #ff4444;
+        .controls input[type="text"] {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(12, 16, 26, 0.85);
+            color: var(--text);
+            font-size: 14px;
         }
 
-        #exportCSV:hover {
-            background-color: #3399ff;
+        .controls button {
+            padding: 10px 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
         }
 
-        #filterInput {
-            width: 100%;
-            padding: 8px;
-            margin: 10px 0;
-            border: 1px solid #555;
-            border-radius: 5px;
-            background-color: #333;
-            color: white;
+        .controls button.export {
+            border-color: rgba(76, 141, 255, 0.45);
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .controls button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        thead {
+            background: rgba(255, 255, 255, 0.03);
         }
 
         th,
         td {
-            padding: 10px;
-            border: 1px solid #555;
+            padding: 12px 14px;
             text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         th {
-            background-color: #444;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
         }
 
-        tr:nth-child(even) {
-            background-color: #333;
-        }
-
-        tr:hover {
-            background-color: #555;
+        tbody tr:hover {
+            background: rgba(76, 141, 255, 0.08);
         }
 
         a {
-            color: #66ccff;
+            color: var(--accent);
             text-decoration: none;
         }
 
         a:hover {
-            color: #99e6ff;
             text-decoration: underline;
         }
 
-        .mark-btn {
-            background-color: #88888800;
-            border: none;
-            color: #f0da00;
-            font-size: 15px;
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
             padding: 4px 8px;
-            border-radius: 2px;
+            border-radius: 999px;
+            background: rgba(76, 141, 255, 0.12);
+            border: 1px solid rgba(76, 141, 255, 0.35);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .bookmark-button,
+        .call-button {
+            border: none;
+            background: transparent;
             cursor: pointer;
-            margin-left: 8px;
+            font-size: 16px;
+            transition: transform 0.15s ease;
         }
 
-        .mark-btn:hover {
-            background-color: #0000001f;
+        .call-button {
+            color: var(--accent);
         }
 
-        .comment-text {
-            color: #ccc;
+        .call-button:hover,
+        .bookmark-button:hover {
+            transform: scale(1.08);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .badge.success {
+            background: rgba(56, 217, 138, 0.12);
+            color: var(--success);
+            border: 1px solid rgba(56, 217, 138, 0.35);
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: var(--overlay);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 999;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-card {
+            width: min(720px, 100%);
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid rgba(76, 141, 255, 0.3);
+            box-shadow: 0 48px 80px rgba(0, 0, 0, 0.45);
+            padding: 28px;
+            position: relative;
+        }
+
+        .modal-card h3 {
+            margin: 0 0 6px;
+            font-size: 22px;
+        }
+
+        .modal-card .subtitle {
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 18px;
+            right: 18px;
+            border: none;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--muted);
+            border-radius: 999px;
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .grid.two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .summary-card {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 14px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: grid;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .summary-card strong {
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .choice-buttons {
+            display: inline-flex;
+            gap: 12px;
+        }
+
+        .choice-buttons button {
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .choice-buttons button.active {
+            border-color: rgba(76, 141, 255, 0.45);
+            background: rgba(76, 141, 255, 0.18);
+            color: var(--accent);
+        }
+
+        .form-group {
+            margin-top: 18px;
+        }
+
+        .form-group label {
+            display: block;
             font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(11, 15, 25, 0.85);
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            min-height: 96px;
+            resize: vertical;
+        }
+
+        .modal-footer {
+            margin-top: 22px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .modal-footer button {
+            flex: 1;
+            padding: 12px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .modal-footer button.primary {
+            background: linear-gradient(135deg, var(--accent), #6aa2ff);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 12px 24px rgba(76, 141, 255, 0.35);
+        }
+
+        .error-text {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .result-box {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .result-box textarea {
+            min-height: 80px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                padding: 24px;
+            }
+
+            .modal-card {
+                padding: 22px;
+            }
         }
     </style>
 </head>
-<meta charset="UFC-8">
 <body>
-    <!-- Bookmarks Section -->
-    <div class="section-header">
-        <h2>Bookmarked Events <span id="bookmarkCount">(0)</span></h2>
-    </div>
-    <table id="bookmarkTable">
-        <thead>
-            <tr>
-                <th>Event Type</th>
-                <th>Truck Number</th>
-                <th>Timestamp</th>
-                <th>Page URL</th>
-                <th>Comment</th>
-            </tr>
-        </thead>
-        <tbody id="bookmarkBody"></tbody>
-    </table>
+    <header class="header">
+        <h1>Project Time Weaver — Event Log</h1>
+        <p>Review captured activity, manage bookmarks, and initiate call validations.</p>
+    </header>
 
-    <!-- Controls -->
-    <div class="section-header">
-        <h2>Recorded Events <span id="eventCount">(Watched 0 Events)</span></h2>
-        <div class="button-group">
-            <button id="exportCSV">Export to CSV</button>
+    <section class="section" id="bookmarkSection">
+        <div class="section-header">
+            <h2>Bookmarked Events</h2>
+            <span id="bookmarkCount" class="badge">0 items</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Event</th>
+                    <th>Truck</th>
+                    <th>Timestamp</th>
+                    <th>Site</th>
+                    <th>Page</th>
+                    <th>Comment</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="bookmarkBody"></tbody>
+        </table>
+    </section>
+
+    <section class="section">
+        <div class="section-header">
+            <h2>Recorded Events</h2>
+            <span id="eventCount" class="badge">0 items</span>
+        </div>
+        <div class="controls">
+            <input type="text" id="filterInput" placeholder="Search by event, truck, timestamp, site, or URL...">
+            <button id="exportCSV" class="export">Export CSV</button>
             <button id="clearLogs">Clear Logs</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Event ID</th>
+                    <th>Event Type</th>
+                    <th>Truck</th>
+                    <th>Timestamp</th>
+                    <th>Site</th>
+                    <th>Page URL</th>
+                    <th>Calls</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="logTableBody"></tbody>
+        </table>
+    </section>
+
+    <div class="modal" id="callModal">
+        <div class="modal-card">
+            <button class="close-modal" id="closeCallModal" title="Close">×</button>
+            <h3>Call Validation</h3>
+            <p class="subtitle">Confirm details for the call log entry and capture the Excel-ready row.</p>
+
+            <div class="grid two" style="margin-bottom: 20px;">
+                <div class="summary-card" id="callSummaryLeft"></div>
+                <div class="summary-card" id="callSummaryRight"></div>
+            </div>
+
+            <div class="form-group" id="validationPrompt">
+                <label>Validation Type</label>
+                <p style="margin: 0 0 8px; color: var(--muted);">Is this the correct validation type?</p>
+                <div class="choice-buttons" style="margin-bottom: 10px;">
+                    <button type="button" id="validationYes">Yes</button>
+                    <button type="button" id="validationNo">No</button>
+                </div>
+                <div class="tag" id="validationDisplay"></div>
+                <div class="form-group hidden" id="validationEditGroup" style="margin-top: 12px;">
+                    <label for="validationInput">Edit validation type</label>
+                    <input type="text" id="validationInput" placeholder="Enter validation type">
+                    <div class="choice-buttons" style="margin-top: 10px;">
+                        <button type="button" id="saveValidation" class="active">Save</button>
+                        <button type="button" id="cancelValidationEdit">Cancel</button>
+                    </div>
+                </div>
+                <div class="error-text hidden" id="validationError">Please confirm or adjust the validation type.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="modalMonitorName">Monitor Name</label>
+                <input type="text" id="modalMonitorName" placeholder="Enter monitor name">
+                <div class="error-text hidden" id="monitorError">Please provide a monitor name.</div>
+            </div>
+
+            <div class="form-group">
+                <label>Contact Made?</label>
+                <div class="choice-buttons">
+                    <button type="button" id="contactYes">Yes</button>
+                    <button type="button" id="contactNo">No</button>
+                </div>
+                <div class="error-text hidden" id="contactError">Select the outcome of the call.</div>
+            </div>
+
+            <div class="result-box hidden" id="callResultBox">
+                <div class="form-group" style="margin-top: 0;">
+                    <label for="tabOutput">Excel Row</label>
+                    <textarea id="tabOutput" readonly></textarea>
+                </div>
+                <button id="copyTabOutput" class="primary" style="width: 100%; margin-top: 12px;">Copy to Clipboard</button>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="ghost" id="cancelCall">Cancel</button>
+                <button type="button" class="primary" id="saveCall">Save Call</button>
+            </div>
         </div>
     </div>
 
-    <input type="text" id="filterInput" placeholder="Search events...">
-
-    <table>
-        <thead>
-            <tr>
-                <th>Event Type</th>
-                <th>Truck Number</th>
-                <th>Timestamp</th>
-                <th>Page URL</th>
-            </tr>
-        </thead>
-        <tbody id="logTableBody"></tbody>
-    </table>
-
     <script src="log.js"></script>
 </body>
-
 </html>
