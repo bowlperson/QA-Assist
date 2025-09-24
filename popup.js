@@ -1,145 +1,204 @@
-document.addEventListener("DOMContentLoaded", function () {
-    let toggle = document.getElementById("toggle");
-    let speedSelect = document.getElementById("speed");
-    let keySelect = document.getElementById("keySelect");
-    let statusText = document.getElementById("statusText");
-    let statusIcon = document.getElementById("statusIcon"); // 48x48px Image for status
-    let autoPressNextToggle = document.getElementById("autoPressNext");
-    let removeEyeTrackerToggle = document.getElementById("removeEyeTracker");
-    let viewLogsButton = document.getElementById("viewLogs");
-    let openSettingsButton = document.getElementById("openSettings");
-    let disableSiteToggle = document.getElementById("disableSite");
+document.addEventListener("DOMContentLoaded", () => {
+    const toggle = document.getElementById("toggle");
+    const speedSelect = document.getElementById("speed");
+    const keySelect = document.getElementById("keySelect");
+    const statusText = document.getElementById("statusText");
+    const statusDot = document.getElementById("statusDot");
+    const scanningBadge = document.getElementById("scanningBadge");
+    const scanIndicator = document.getElementById("scanIndicator");
+    const autoPressNextToggle = document.getElementById("autoPressNext");
+    const removeEyeTrackerToggle = document.getElementById("removeEyeTracker");
+    const monitorNameInput = document.getElementById("monitorName");
+    const viewLogsButton = document.getElementById("viewLogs");
+    const openOverridesButton = document.getElementById("openOverrides");
+    const openSiteInfoButton = document.getElementById("openSiteInfo");
+    const overrideBadge = document.getElementById("overrideBadge");
 
-    let currentHost = "";
-    chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-        if (tabs[0]) {
-            try {
-                currentHost = new URL(tabs[0].url).hostname;
-            } catch {}
-            chrome.storage.sync.get(["disabledSites", "siteRules"], data => {
-                const rules = data.siteRules || {};
-                const hostRule = rules[currentHost];
-                disableSiteToggle.checked = hostRule ? hostRule.disabled : false;
-                updateStatus(!(hostRule && hostRule.disabled) && (data.enabled ?? false));
-            });
+    const scanConfirmModal = document.getElementById("scanConfirm");
+    const confirmScanButton = document.getElementById("confirmScan");
+    const cancelScanButton = document.getElementById("cancelScan");
+
+    let currentEnabledState = false;
+    let cachedOverrides = [];
+
+    function findOverrideForUrl(url, overrides) {
+        if (!url || !Array.isArray(overrides)) {
+            return null;
         }
-    });
-    
-    // Load stored settings
-    chrome.storage.sync.get(["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker"], function (data) {
-        console.log("🔄 Loaded settings:", data);
 
-        toggle.checked = data.enabled ?? false;
-        speedSelect.value = data.playbackSpeed || "1"; 
-        keySelect.value = data.pressKey || "ArrowDown"; 
-        autoPressNextToggle.checked = data.autoPressNext ?? false;
-        removeEyeTrackerToggle.checked = data.removeEyeTracker ?? false;
+        let host = "";
+        try {
+            host = new URL(url).hostname.toLowerCase();
+        } catch (error) {
+            host = url.toLowerCase();
+        }
 
-        updateStatus(toggle.checked);
-    });
+        return (
+            overrides.find((override) => {
+                if (!override || !override.pattern) {
+                    return false;
+                }
 
-    // Function to update status text and icon
-    function updateStatus(isEnabled) {
-        statusText.textContent = isEnabled ? "Enabled" : "Disabled";
-        statusText.style.color = isEnabled ? "green" : "red";
-        statusIcon.src = isEnabled ? "on.png" : "off.png"; // Change icon
+                const pattern = String(override.pattern).toLowerCase();
+                return host === pattern || host.endsWith(`.${pattern}`) || url.toLowerCase().includes(pattern);
+            }) || null
+        );
     }
 
-    // Toggle switch event
-    toggle.addEventListener("change", function () {
-        let isEnabled = toggle.checked;
-        console.log("🔘 Toggling state to:", isEnabled);
+    function updateOverrideBadge(overrides) {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (!tabs.length) {
+                return;
+            }
+
+            const activeTab = tabs[0];
+            const override = findOverrideForUrl(activeTab.url, overrides);
+
+            if (override) {
+                overrideBadge.textContent = override.name ? `Override: ${override.name}` : "Override active";
+                overrideBadge.classList.add("active");
+                overrideBadge.classList.remove("subtle");
+            } else {
+                overrideBadge.textContent = "No active override";
+                overrideBadge.classList.remove("active");
+                overrideBadge.classList.add("subtle");
+            }
+        });
+    }
+
+    function updateStatusVisuals(isEnabled) {
+        statusText.textContent = isEnabled ? "Scanning" : "Standby";
+        statusText.style.color = isEnabled ? "var(--success)" : "var(--warning)";
+        statusDot.style.background = isEnabled ? "var(--success)" : "var(--warning)";
+        statusDot.style.boxShadow = isEnabled
+            ? "0 0 10px rgba(61, 214, 140, 0.7)"
+            : "0 0 8px rgba(246, 201, 95, 0.6)";
+
+        scanningBadge.textContent = isEnabled ? "Active" : "Standby";
+        scanningBadge.classList.toggle("active", isEnabled);
+        scanningBadge.classList.toggle("alert", !isEnabled);
+
+        scanIndicator.textContent = isEnabled
+            ? "Scanning mode is actively monitoring for new events."
+            : "Scanning mode is currently inactive.";
+        scanIndicator.classList.toggle("active", isEnabled);
+    }
+
+    function sendMessageToActiveTab(payload) {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (!tabs.length) {
+                return;
+            }
+            chrome.tabs.sendMessage(tabs[0].id, payload, () => chrome.runtime.lastError);
+        });
+    }
+
+    function setEnabledState(isEnabled) {
+        currentEnabledState = isEnabled;
+        toggle.checked = isEnabled;
+        updateStatusVisuals(isEnabled);
 
         chrome.storage.sync.set({ enabled: isEnabled }, () => {
-            updateStatus(isEnabled);
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (tabs.length > 0) {
-                    chrome.tabs.sendMessage(tabs[0].id, { enabled: isEnabled });
-                }
-            });
+            sendMessageToActiveTab({ enabled: isEnabled });
         });
+    }
+
+    function openScanConfirm() {
+        scanConfirmModal.classList.add("show");
+    }
+
+    function closeScanConfirm() {
+        scanConfirmModal.classList.remove("show");
+    }
+
+    chrome.storage.sync.get(
+        ["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "monitorName", "siteOverrides"],
+        (data) => {
+            currentEnabledState = data.enabled ?? false;
+            toggle.checked = currentEnabledState;
+            speedSelect.value = data.playbackSpeed || "1";
+            keySelect.value = data.pressKey || "ArrowDown";
+            autoPressNextToggle.checked = data.autoPressNext ?? false;
+            removeEyeTrackerToggle.checked = data.removeEyeTracker ?? false;
+            monitorNameInput.value = data.monitorName || "";
+            cachedOverrides = Array.isArray(data.siteOverrides) ? data.siteOverrides : [];
+
+            updateStatusVisuals(currentEnabledState);
+            updateOverrideBadge(cachedOverrides);
+            sendMessageToActiveTab({ siteOverrides: cachedOverrides });
+        },
+    );
+
+    toggle.addEventListener("change", () => {
+        const desiredState = toggle.checked;
+        if (desiredState && !currentEnabledState) {
+            toggle.checked = currentEnabledState;
+            openScanConfirm();
+            return;
+        }
+
+        setEnabledState(desiredState);
     });
 
-    // Auto Press Next List Toggle
-    autoPressNextToggle.addEventListener("change", function () {
-        let isEnabled = autoPressNextToggle.checked;
-        console.log("🔄 Auto Press Next List:", isEnabled);
+    confirmScanButton.addEventListener("click", () => {
+        closeScanConfirm();
+        setEnabledState(true);
+    });
 
+    cancelScanButton.addEventListener("click", () => {
+        closeScanConfirm();
+        setEnabledState(false);
+    });
+
+    autoPressNextToggle.addEventListener("change", () => {
+        const isEnabled = autoPressNextToggle.checked;
         chrome.storage.sync.set({ autoPressNext: isEnabled }, () => {
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (tabs.length > 0) {
-                    chrome.tabs.sendMessage(tabs[0].id, { autoPressNext: isEnabled });
-                }
-            });
+            sendMessageToActiveTab({ autoPressNext: isEnabled });
         });
     });
 
-    // Remove Eye Tracker Toggle
-    removeEyeTrackerToggle.addEventListener("change", function () {
-        let isEnabled = removeEyeTrackerToggle.checked;
-        console.log("👀 Remove Eye Tracker:", isEnabled);
-
+    removeEyeTrackerToggle.addEventListener("change", () => {
+        const isEnabled = removeEyeTrackerToggle.checked;
         chrome.storage.sync.set({ removeEyeTracker: isEnabled }, () => {
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (tabs.length > 0) {
-                    chrome.tabs.sendMessage(tabs[0].id, { removeEyeTracker: isEnabled });
-                }
-            });
+            sendMessageToActiveTab({ removeEyeTracker: isEnabled });
         });
     });
 
-    // Speed selection event
-    speedSelect.addEventListener("change", function () {
-        let selectedSpeed = speedSelect.value;
-        console.log("⚡ Speed changed to:", selectedSpeed);
-
+    speedSelect.addEventListener("change", () => {
+        const selectedSpeed = speedSelect.value;
         chrome.storage.sync.set({ playbackSpeed: selectedSpeed }, () => {
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (tabs.length > 0) {
-                    chrome.tabs.sendMessage(tabs[0].id, { playbackSpeed: selectedSpeed });
-                }
-            });
+            sendMessageToActiveTab({ playbackSpeed: selectedSpeed });
         });
     });
 
-    // Key selection event
-    keySelect.addEventListener("change", function () {
-        let selectedKey = keySelect.value;
-        console.log("🎯 Key changed to:", selectedKey);
-
+    keySelect.addEventListener("change", () => {
+        const selectedKey = keySelect.value;
         chrome.storage.sync.set({ pressKey: selectedKey }, () => {
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (tabs.length > 0) {
-                    chrome.tabs.sendMessage(tabs[0].id, { pressKey: selectedKey });
-                }
-            });
+            sendMessageToActiveTab({ pressKey: selectedKey });
         });
     });
 
-    disableSiteToggle.addEventListener("change", function () {
-        const disabled = disableSiteToggle.checked;
-        chrome.storage.sync.get({ siteRules: {} }, data => {
-            const rules = data.siteRules;
-            if (!rules[currentHost]) rules[currentHost] = {};
-            rules[currentHost].disabled = disabled;
-            chrome.storage.sync.set({ siteRules: rules }, () => {
-                updateStatus(toggle.checked && !disabled);
-                chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-                    if (tabs[0]) {
-                        chrome.tabs.sendMessage(tabs[0].id, { siteRules: rules });
-                    }
-                });
-            });
-        });
+    monitorNameInput.addEventListener("blur", () => {
+        const name = monitorNameInput.value.trim();
+        chrome.storage.sync.set({ monitorName: name });
     });
 
-    // Open log.html when clicking "View Logs" button
-    viewLogsButton.addEventListener("click", function () {
+    monitorNameInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            monitorNameInput.blur();
+        }
+    });
+
+    viewLogsButton.addEventListener("click", () => {
         chrome.tabs.create({ url: chrome.runtime.getURL("log.html") });
     });
 
-    // Open settings.html when clicking "Advanced Settings" button
-    openSettingsButton.addEventListener("click", function () {
-        chrome.tabs.create({ url: chrome.runtime.getURL("settings.html") });
+    openOverridesButton.addEventListener("click", () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL("site-overrides.html") });
+    });
+
+    openSiteInfoButton.addEventListener("click", () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL("site-info.html") });
     });
 });
