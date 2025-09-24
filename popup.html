@@ -3,14 +3,14 @@
 <head>
     <title>QA Assist</title>
     <style>
-        body { 
-            width: 230px; 
-            font-family: Arial, sans-serif; 
-            text-align: center; 
+        body {
+            width: 260px;
+            font-family: Arial, sans-serif;
+            text-align: center;
             background-color: #222;
             color: #fff;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 12px 10px 16px;
+            border-radius: 8px;
             position: relative;
         }
 
@@ -37,7 +37,7 @@
         }
 
         #status {
-            margin-top: 10px; 
+            margin-top: 10px;
             font-weight: bold;
         }
 
@@ -49,43 +49,70 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
         }
 
         .dropdown-container div {
-            width: 48%;
+            width: 50%;
             text-align: left;
         }
 
-        #viewLogs {
-            margin-top: 15px;
-            padding: 8px;
-            width: 100%;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-
-        #viewLogs:hover {
-            background-color: #3399ff;
-        }
-
-        /* Status Icon */
         #statusIcon {
             position: absolute;
-            top: 5px;
-            right: 5px;
-            width: 48px;
-            height: 48px;
+            top: 8px;
+            right: 10px;
+            width: 40px;
+            height: 40px;
+        }
+
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .app-header img {
+            width: 32px;
+            height: 32px;
+        }
+
+        .app-header h3 {
+            margin: 0;
+        }
+
+        .nav-button {
+            width: 100%;
+            margin-top: 8px;
+            padding: 8px 10px;
+            background-color: #2f3645;
+            border: 1px solid #4d5566;
+            color: #fff;
+            border-radius: 5px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .nav-button:hover {
+            background-color: #3f4a63;
+        }
+
+        .nav-buttons {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
         }
     </style>
 </head>
 <body>
-    <h3>QA Assist</h3>
-    
-    <!-- Status Icon -->
+    <div class="app-header">
+        <img src="icon.png" alt="QA Assist Icon">
+        <h3>QA Assist</h3>
+    </div>
+
     <img id="statusIcon" src="off.png" alt="Status">
 
     <label>
@@ -127,8 +154,14 @@
 
     <p id="status">Status: <span id="statusText">Checking...</span></p>
 
-    <button id="viewLogs">View Logs</button>
+    <div class="nav-buttons">
+        <button class="nav-button" id="openCallValidation">Open Call Validation</button>
+        <button class="nav-button" id="openSettingsPage">Open Settings</button>
+        <button class="nav-button" id="viewLogs">Open Event Log</button>
+        <button class="nav-button" id="openSiteInfo">Open Site Info</button>
+    </div>
 
+    <script src="settings-controller.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

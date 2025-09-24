@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist - Settings</title>
+    <link rel="stylesheet" href="styles/common.css">
+    <style>
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .status-indicator img {
+            width: 48px;
+            height: 48px;
+        }
+
+        select {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <nav class="top-nav">
+        <button data-nav-target="call-validation.html">Call Validation</button>
+        <button data-nav-target="settings.html">Settings</button>
+        <button data-nav-target="log.html">Event Log</button>
+        <button data-nav-target="site-info.html">Site Info</button>
+    </nav>
+    <main>
+        <section class="section-card">
+            <div class="status-indicator">
+                <img id="statusIcon" src="off.png" alt="Status Icon">
+                <div>
+                    <h2>QA Assist Settings</h2>
+                    <p>Status: <strong id="statusText">Disabled</strong></p>
+                </div>
+            </div>
+            <div class="settings-grid">
+                <div>
+                    <label for="toggle">Scanning Mode</label>
+                    <div class="toggle-row">
+                        <span>Activate automation</span>
+                        <input type="checkbox" id="toggle">
+                    </div>
+                </div>
+                <div>
+                    <label for="speed">Playback Speed</label>
+                    <select id="speed">
+                        <option value="1">1x</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="keySelect">Advance Key</label>
+                    <select id="keySelect">
+                        <option value="ArrowRight">OAS</option>
+                        <option value="ArrowDown">OpWeb</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="autoPressNext">Auto Press Next (OpWeb only)</label>
+                    <input type="checkbox" id="autoPressNext">
+                </div>
+                <div>
+                    <label for="removeEyeTracker">Remove Eye Tracker Overlay</label>
+                    <input type="checkbox" id="removeEyeTracker">
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <button class="secondary" id="viewLogs">Open Event Log</button>
+            </div>
+        </section>
+    </main>
+    <script src="navigation.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            initNavigation('settings.html');
+        });
+    </script>
+    <script src="settings-controller.js"></script>
+    <script src="settings.js"></script>
+</body>
+</html>

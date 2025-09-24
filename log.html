@@ -1,25 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UFC-8">
-    <title>Event Log</title>
+    <meta charset="UTF-8">
+    <title>QA Assist - Event Log</title>
+    <link rel="stylesheet" href="styles/common.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #222;
-            color: #fff;
-            padding: 20px;
-        }
-
-        h2 {
-            margin: 0;
-        }
-
         .section-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 0;
+            gap: 12px;
         }
 
         .button-group {
@@ -27,138 +17,106 @@
             gap: 10px;
         }
 
-        #clearLogs,
-        #exportCSV {
-            background-color: #cc0000;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 14px;
-            padding: 8px 12px;
+        .button-group .danger {
+            border-color: #ff5c5c;
+            color: #ff8a8a;
         }
 
-        #exportCSV {
-            background-color: #007bff;
+        .button-group .danger:hover {
+            background-color: rgba(255, 92, 92, 0.1);
         }
 
-        #clearLogs:hover {
-            background-color: #ff4444;
-        }
-
-        #exportCSV:hover {
-            background-color: #3399ff;
-        }
-
-        #filterInput {
-            width: 100%;
-            padding: 8px;
-            margin: 10px 0;
-            border: 1px solid #555;
-            border-radius: 5px;
-            background-color: #333;
-            color: white;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-
-        th,
-        td {
-            padding: 10px;
-            border: 1px solid #555;
-            text-align: left;
-        }
-
-        th {
-            background-color: #444;
-        }
-
-        tr:nth-child(even) {
-            background-color: #333;
-        }
-
-        tr:hover {
-            background-color: #555;
+        .filter-input {
+            margin-top: 12px;
+            margin-bottom: 12px;
         }
 
         a {
-            color: #66ccff;
-            text-decoration: none;
+            color: #7ab8ff;
         }
 
         a:hover {
-            color: #99e6ff;
-            text-decoration: underline;
+            color: #a4d4ff;
         }
 
         .mark-btn {
-            background-color: #88888800;
-            border: none;
-            color: #f0da00;
-            font-size: 15px;
+            background-color: transparent;
+            border: 1px solid #ffd54f;
+            color: #ffd54f;
+            font-size: 14px;
             padding: 4px 8px;
-            border-radius: 2px;
+            border-radius: 3px;
             cursor: pointer;
-            margin-left: 8px;
         }
 
         .mark-btn:hover {
-            background-color: #0000001f;
+            background-color: rgba(255, 213, 79, 0.15);
         }
 
         .comment-text {
-            color: #ccc;
+            color: #c4c8e6;
             font-size: 12px;
         }
     </style>
 </head>
-<meta charset="UFC-8">
 <body>
-    <!-- Bookmarks Section -->
-    <div class="section-header">
-        <h2>Bookmarked Events <span id="bookmarkCount">(0)</span></h2>
-    </div>
-    <table id="bookmarkTable">
-        <thead>
-            <tr>
-                <th>Event Type</th>
-                <th>Truck Number</th>
-                <th>Timestamp</th>
-                <th>Page URL</th>
-                <th>Comment</th>
-            </tr>
-        </thead>
-        <tbody id="bookmarkBody"></tbody>
-    </table>
+    <nav class="top-nav">
+        <button data-nav-target="call-validation.html">Call Validation</button>
+        <button data-nav-target="settings.html">Settings</button>
+        <button data-nav-target="log.html">Event Log</button>
+        <button data-nav-target="site-info.html">Site Info</button>
+    </nav>
+    <main>
+        <section class="section-card">
+            <div class="section-header">
+                <h2>Bookmarked Events <span id="bookmarkCount">(0)</span></h2>
+            </div>
+            <div class="table-container">
+                <table id="bookmarkTable">
+                    <thead>
+                        <tr>
+                            <th>Event Type</th>
+                            <th>Truck Number</th>
+                            <th>Timestamp</th>
+                            <th>Page URL</th>
+                            <th>Comment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookmarkBody"></tbody>
+                </table>
+            </div>
+        </section>
 
-    <!-- Controls -->
-    <div class="section-header">
-        <h2>Recorded Events <span id="eventCount">(Watched 0 Events)</span></h2>
-        <div class="button-group">
-            <button id="exportCSV">Export to CSV</button>
-            <button id="clearLogs">Clear Logs</button>
-        </div>
-    </div>
-
-    <input type="text" id="filterInput" placeholder="Search events...">
-
-    <table>
-        <thead>
-            <tr>
-                <th>Event Type</th>
-                <th>Truck Number</th>
-                <th>Timestamp</th>
-                <th>Page URL</th>
-            </tr>
-        </thead>
-        <tbody id="logTableBody"></tbody>
-    </table>
-
+        <section class="section-card">
+            <div class="section-header">
+                <h2>Recorded Events <span id="eventCount">(Watched 0 Events)</span></h2>
+                <div class="button-group">
+                    <button class="secondary" id="exportCSV">Export CSV</button>
+                    <button class="secondary danger" id="clearLogs">Clear Logs</button>
+                </div>
+            </div>
+            <input type="text" id="filterInput" class="filter-input" placeholder="Search events...">
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Event Type</th>
+                            <th>Truck Number</th>
+                            <th>Timestamp</th>
+                            <th>Page URL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+    <script src="navigation.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            initNavigation('log.html');
+        });
+    </script>
     <script src="log.js"></script>
 </body>
-
 </html>
