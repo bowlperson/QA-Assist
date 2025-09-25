@@ -1,4 +1,4 @@
-// Enhanced log.js for Project Time Weaver
+// Enhanced log.js for QA Assist
 
 document.addEventListener("DOMContentLoaded", () => {
     const logTableBody = document.getElementById("logTableBody");
@@ -32,9 +32,261 @@ document.addEventListener("DOMContentLoaded", () => {
     const tabOutput = document.getElementById("tabOutput");
     const callSummaryLeft = document.getElementById("callSummaryLeft");
     const callSummaryRight = document.getElementById("callSummaryRight");
+    const copyEventTimeButton = document.getElementById("copyEventTime");
+    const copyCallTimeButton = document.getElementById("copyCallTime");
+    const bookmarkModal = document.getElementById("bookmarkModal");
+    const bookmarkCommentInput = document.getElementById("bookmarkComment");
+    const bookmarkSaveButton = document.getElementById("bookmarkSave");
+    const bookmarkRemoveButton = document.getElementById("bookmarkRemove");
+    const bookmarkCancelButton = document.getElementById("bookmarkCancel");
+    const closeBookmarkModalButton = document.getElementById("closeBookmarkModal");
+    const confirmModal = document.getElementById("confirmModal");
+    const confirmMessage = document.getElementById("confirmMessage");
+    const confirmAcceptButton = document.getElementById("confirmAccept");
+    const confirmCancelButton = document.getElementById("confirmCancel");
+    const closeConfirmButton = document.getElementById("closeConfirmModal");
+    const logToast = document.getElementById("logToast");
 
     let logs = [];
     let activeCallState = null;
+    let activeBookmarkId = null;
+    let confirmAction = null;
+    let toastTimeout = null;
+
+    function normalizeValidationType(value) {
+        const text = String(value || "").trim();
+        if (!text) {
+            return "";
+        }
+
+        const lower = text.toLowerCase();
+
+        if (lower.includes("blocked")) {
+            return "Blocked";
+        }
+        if (lower.includes("critical")) {
+            return "Critical";
+        }
+        if (lower.includes("moderate")) {
+            return "Moderate";
+        }
+        if (lower.includes("low")) {
+            return "3 Low/hr";
+        }
+        if (lower.includes("cell")) {
+            return "Cellphone";
+        }
+        if (lower.includes("non") || lower.includes("false")) {
+            return "False Positive";
+        }
+        if (lower.includes("lost")) {
+            return "Lost Connection";
+        }
+
+        return text;
+    }
+
+    function extractHourMinuteFromDate(date) {
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+            return { hour: "", minute: "" };
+        }
+
+        return {
+            hour: String(date.getHours()),
+            minute: String(date.getMinutes()),
+        };
+    }
+
+    function extractHourMinuteFromText(text) {
+        if (!text) {
+            return null;
+        }
+
+        const match = String(text)
+            .trim()
+            .match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?/i);
+
+        if (!match) {
+            return null;
+        }
+
+        let hour = Number.parseInt(match[1], 10);
+        const minuteValue = Number.parseInt(match[2], 10);
+        if (Number.isNaN(hour) || Number.isNaN(minuteValue)) {
+            return null;
+        }
+
+        const meridiem = match[4] ? match[4].toUpperCase() : null;
+        if (meridiem === "PM" && hour < 12) {
+            hour += 12;
+        } else if (meridiem === "AM" && hour === 12) {
+            hour = 0;
+        }
+
+        return {
+            hour: String(hour),
+            minute: String(minuteValue),
+        };
+    }
+
+    function getEventTimeParts(log) {
+        if (!log) {
+            return { hour: "", minute: "" };
+        }
+
+        const fromTimestamp = extractHourMinuteFromText(log.timestamp);
+        if (fromTimestamp) {
+            return fromTimestamp;
+        }
+
+        const createdAt = log.createdAt ? new Date(log.createdAt) : null;
+        if (createdAt) {
+            return extractHourMinuteFromDate(createdAt);
+        }
+
+        return { hour: "", minute: "" };
+    }
+
+    function getCallTimeParts(callHistory) {
+        const safeHistory = Array.isArray(callHistory) ? callHistory : [];
+
+        return [0, 1, 2].map((index) => {
+            const entry = safeHistory[index];
+            if (!entry) {
+                return { hour: "", minute: "" };
+            }
+
+            const entryDate = entry.timestamp ? new Date(entry.timestamp) : null;
+            if (entryDate) {
+                const parts = extractHourMinuteFromDate(entryDate);
+                if (parts.hour || parts.minute) {
+                    return parts;
+                }
+            }
+
+            const fallback = extractHourMinuteFromText(entry.time || entry.tabRow || "");
+            return fallback || { hour: "", minute: "" };
+        });
+    }
+
+    function showToast(message) {
+        if (!logToast) {
+            return;
+        }
+
+        logToast.textContent = message;
+        logToast.classList.add("show");
+
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+        }
+
+        toastTimeout = setTimeout(() => {
+            logToast.classList.remove("show");
+        }, 2200);
+    }
+
+    function setValidationButtonState(choice) {
+        validationYesButton.classList.toggle("active", choice === "yes");
+        validationNoButton.classList.toggle("active", choice === "no");
+    }
+
+    function resolveValidationValue(log) {
+        if (!log) {
+            return "";
+        }
+
+        const candidates = [
+            log.validationType,
+            log.finalValidation,
+            log.detectedValidation,
+            log.validationTypeDetected,
+            log.validationTypeRaw,
+        ];
+
+        for (const candidate of candidates) {
+            const text = (candidate || "").trim();
+            if (text) {
+                return text;
+            }
+        }
+
+        return "";
+    }
+
+    function closeBookmarkModal() {
+        if (!bookmarkModal) {
+            return;
+        }
+
+        bookmarkModal.classList.remove("show");
+        activeBookmarkId = null;
+        if (bookmarkCommentInput) {
+            bookmarkCommentInput.value = "";
+        }
+    }
+
+    function openBookmarkModal(log) {
+        if (!bookmarkModal || !log) {
+            return;
+        }
+
+        activeBookmarkId = log.id;
+        bookmarkModal.classList.add("show");
+
+        if (bookmarkCommentInput) {
+            bookmarkCommentInput.value = log.comment || "";
+            setTimeout(() => bookmarkCommentInput.focus(), 100);
+        }
+
+        if (bookmarkSaveButton) {
+            bookmarkSaveButton.textContent = log.bookmarked ? "Save Changes" : "Add Bookmark";
+        }
+
+        if (bookmarkRemoveButton) {
+            bookmarkRemoveButton.classList.toggle("hidden", !log.bookmarked);
+        }
+    }
+
+    function closeConfirmModal() {
+        if (!confirmModal) {
+            return;
+        }
+
+        confirmModal.classList.remove("show");
+        confirmAction = null;
+    }
+
+    function openConfirmModal(message, action) {
+        if (!confirmModal) {
+            if (typeof action === "function") {
+                action();
+            }
+            return;
+        }
+
+        if (confirmMessage) {
+            confirmMessage.textContent = message;
+        }
+        confirmModal.classList.add("show");
+        confirmAction = typeof action === "function" ? action : null;
+        if (confirmAcceptButton) {
+            setTimeout(() => confirmAcceptButton.focus(), 100);
+        }
+    }
+
+    function flashButtonFeedback(button, message, duration = 1200) {
+        if (!button) {
+            return;
+        }
+        const original = button.textContent;
+        button.textContent = message;
+        button.disabled = true;
+        setTimeout(() => {
+            button.textContent = original;
+            button.disabled = false;
+        }, duration);
+    }
 
     function generateId() {
         if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -69,6 +321,26 @@ document.addEventListener("DOMContentLoaded", () => {
         shaped.callHistory = Array.isArray(shaped.callHistory) ? shaped.callHistory : [];
         shaped.eventKey = shaped.eventKey || createEventKey(shaped);
         shaped.id = shaped.id || generateId();
+        const detected =
+            shaped.validationTypeRaw ||
+            shaped.validationTypeDetected ||
+            shaped.detectedValidation ||
+            shaped.validationType ||
+            "";
+
+        const normalizedValidation = normalizeValidationType(shaped.validationType || detected);
+
+        if (!shaped.validationTypeRaw) {
+            shaped.validationTypeRaw = detected;
+        }
+        if (!shaped.validationTypeDetected) {
+            shaped.validationTypeDetected = detected;
+        }
+        if (!shaped.detectedValidation) {
+            shaped.detectedValidation = detected;
+        }
+
+        shaped.validationType = normalizedValidation;
 
         return shaped;
     }
@@ -128,18 +400,7 @@ document.addEventListener("DOMContentLoaded", () => {
         button.title = log.bookmarked ? "Remove bookmark" : "Bookmark event";
         button.textContent = log.bookmarked ? "★" : "☆";
 
-        button.addEventListener("click", () => {
-            if (log.bookmarked) {
-                log.bookmarked = false;
-                log.comment = "";
-            } else {
-                const comment = prompt("Add a comment for this bookmark:", log.comment || "");
-                log.bookmarked = true;
-                log.comment = comment || "";
-            }
-            saveLogs();
-            updateDisplays(logs);
-        });
+        button.addEventListener("click", () => openBookmarkModal(log));
 
         return button;
     }
@@ -167,6 +428,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const timestampCell = document.createElement("td");
         timestampCell.textContent = log.timestamp || "—";
 
+        const validationCell = document.createElement("td");
+        validationCell.textContent = resolveValidationValue(log) || "—";
+
         const siteCell = document.createElement("td");
         siteCell.textContent = (log.siteName || "—").trim();
 
@@ -185,6 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.appendChild(eventCell);
         row.appendChild(truckCell);
         row.appendChild(timestampCell);
+        row.appendChild(validationCell);
         row.appendChild(siteCell);
         row.appendChild(pageCell);
         row.appendChild(commentCell);
@@ -216,6 +481,10 @@ document.addEventListener("DOMContentLoaded", () => {
             ? `<a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>`
             : "—";
 
+        const validationCell = document.createElement("td");
+        const validationText = resolveValidationValue(log);
+        validationCell.textContent = validationText || "—";
+
         const callsCell = document.createElement("td");
         const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
         callsCell.innerHTML = attempts
@@ -234,6 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.appendChild(timestampCell);
         row.appendChild(siteCell);
         row.appendChild(pageCell);
+        row.appendChild(validationCell);
         row.appendChild(callsCell);
         row.appendChild(actionsCell);
 
@@ -255,6 +525,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 log.pageUrl,
                 log.siteName,
                 log.eventId,
+                resolveValidationValue(log),
             ]
                 .filter(Boolean)
                 .join(" ")
@@ -294,8 +565,22 @@ document.addEventListener("DOMContentLoaded", () => {
         validationError.classList.add("hidden");
         validationEditGroup.classList.add("hidden");
         validationInput.value = "";
+        validationDisplay.textContent = "";
+        validationDisplay.className = "tag";
         callSummaryLeft.innerHTML = "";
         callSummaryRight.innerHTML = "";
+        setValidationButtonState(null);
+        saveCallButton.disabled = false;
+        if (copyEventTimeButton) {
+            copyEventTimeButton.textContent = "Only Copy Event Time";
+            copyEventTimeButton.disabled = false;
+        }
+        if (copyCallTimeButton) {
+            copyCallTimeButton.textContent = "Only Copy Call Time";
+            copyCallTimeButton.disabled = false;
+        }
+        copyTabOutputButton.textContent = "Copy to Clipboard";
+        copyTabOutputButton.disabled = false;
     }
 
     function closeCallModal() {
@@ -313,20 +598,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
         const attemptNumber = attempts + 1;
-        const defaultValidation = (log.validationType || log.eventType || "").trim();
+        const detectedValidation = resolveValidationValue(log);
+        const defaultValidation = normalizeValidationType(detectedValidation);
 
         activeCallState = {
             logId,
             attemptNumber,
             defaultValidation,
-            finalValidation: defaultValidation,
+            finalValidation: defaultValidation || detectedValidation || "",
             validationConfirmed: false,
             contactSelection: null,
             monitorName: "",
+            detectedValidation,
+            eventTimeParts: null,
+            callTimeParts: null,
+            latestAttemptIndex: null,
         };
 
-        validationDisplay.textContent = defaultValidation || "—";
+        validationDisplay.textContent = defaultValidation || detectedValidation || "—";
         validationDisplay.className = "tag";
+        setValidationButtonState(null);
 
         callSummaryLeft.innerHTML = `
             <strong>Event Type</strong>
@@ -342,6 +633,8 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>${(log.siteName || "—").trim()}</span>
             <strong>Attempts Logged</strong>
             <span>${attempts}</span>
+            <strong>Validation Type</strong>
+            <span>${defaultValidation || detectedValidation || "—"}</span>
             <strong>Page</strong>
             <span>${log.pageUrl ? `<a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>` : "—"}</span>
         `;
@@ -376,33 +669,29 @@ document.addEventListener("DOMContentLoaded", () => {
     function generateTabDelimitedRow(log, attemptRecord, monitorName) {
         const now = attemptRecord ? new Date(attemptRecord.timestamp) : new Date();
         const dateStr = formatDate(now);
-        const eventCreatedAt = log.createdAt ? new Date(log.createdAt) : now;
-
-        const attempts = Array.isArray(log.callHistory) ? log.callHistory : [];
-        const attemptTimes = [attempts[0], attempts[1], attempts[2]].map((entry) =>
-            entry ? formatTime(new Date(entry.timestamp)) : "",
-        );
-
-        const callLabels = [
-            attempts[0] ? "Call Attempt 1" : "",
-            attempts[1] ? "Call Attempt 2" : "",
-            attempts[2] ? "Call Attempt 3" : "",
-        ];
+        const eventTime = getEventTimeParts(log);
+        const callTimes = getCallTimeParts(log.callHistory);
 
         const contactMade = attemptRecord ? attemptRecord.contactMade : false;
         const receptor = contactMade ? "Dispatch" : "";
-        const validationType = (log.validationType || log.eventType || "").trim();
+        const baseValidation =
+            (attemptRecord && attemptRecord.validationType) ||
+            (activeCallState?.finalValidation && activeCallState.finalValidation.trim()) ||
+            (activeCallState?.defaultValidation && activeCallState.defaultValidation.trim()) ||
+            resolveValidationValue(log);
 
-        return [
+        const validationType = normalizeValidationType(baseValidation) || baseValidation || "";
+
+        const row = [
             dateStr,
-            log.eventId || "",
-            formatTime(eventCreatedAt),
-            attemptTimes[0],
-            callLabels[0],
-            attemptTimes[1],
-            callLabels[1],
-            attemptTimes[2],
-            callLabels[2],
+            eventTime.hour,
+            eventTime.minute,
+            callTimes[0].hour,
+            callTimes[0].minute,
+            callTimes[1].hour,
+            callTimes[1].minute,
+            callTimes[2].hour,
+            callTimes[2].minute,
             (log.siteName || "").trim(),
             log.truckNumber || "",
             validationType,
@@ -410,6 +699,8 @@ document.addEventListener("DOMContentLoaded", () => {
             contactMade ? "Yes" : "No",
             receptor,
         ].join("\t");
+
+        return { row, eventTime, callTimes };
     }
 
     function handleSaveCall() {
@@ -447,7 +738,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const contactMade = activeCallState.contactSelection === "yes";
         const timestamp = new Date().toISOString();
 
-        log.validationType = activeCallState.finalValidation || log.validationType || log.eventType;
+        const fallbackValidation =
+            (activeCallState.finalValidation && activeCallState.finalValidation.trim()) ||
+            (activeCallState.defaultValidation && activeCallState.defaultValidation.trim()) ||
+            resolveValidationValue(log);
+        const normalizedFinalValidation = normalizeValidationType(fallbackValidation);
+        const finalValidationValue = normalizedFinalValidation || fallbackValidation || "";
+
+        activeCallState.finalValidation = finalValidationValue;
+        log.validationType = finalValidationValue;
+        log.validationTypeRaw = finalValidationValue;
+        log.validationTypeDetected = finalValidationValue;
+        log.detectedValidation = finalValidationValue;
         log.monitorName = monitorName;
         log.callHistory = Array.isArray(log.callHistory) ? log.callHistory : [];
 
@@ -456,11 +758,16 @@ document.addEventListener("DOMContentLoaded", () => {
             timestamp,
             contactMade,
             receptor: contactMade ? "Dispatch" : "",
+            validationType: finalValidationValue,
         };
 
         log.callHistory.push(attemptRecord);
 
-        const tabRow = generateTabDelimitedRow(log, attemptRecord, monitorName);
+        const { row: tabRow, eventTime, callTimes } = generateTabDelimitedRow(
+            log,
+            attemptRecord,
+            monitorName,
+        );
         attemptRecord.tabRow = tabRow;
 
         chrome.storage.sync.set({ monitorName });
@@ -470,6 +777,12 @@ document.addEventListener("DOMContentLoaded", () => {
         tabOutput.value = tabRow;
         callResultBox.classList.remove("hidden");
         saveCallButton.disabled = true;
+        activeCallState.eventTimeParts = eventTime;
+        activeCallState.callTimeParts = callTimes;
+        activeCallState.latestAttemptIndex = Math.min(
+            callTimes.length - 1,
+            Math.max(0, attemptRecord.attempt - 1),
+        );
     }
 
     filterInput.addEventListener("input", () => updateDisplays(logs));
@@ -479,11 +792,12 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        if (confirm("Are you sure you want to clear all logs?")) {
+        openConfirmModal("Clear all saved events?", () => {
             logs = [];
             saveLogs();
             updateDisplays(logs);
-        }
+            showToast("Event log cleared");
+        });
     });
 
     exportCSVButton.addEventListener("click", () => {
@@ -509,19 +823,19 @@ document.addEventListener("DOMContentLoaded", () => {
             const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
             const lastAttempt = attempts ? log.callHistory[attempts - 1] : null;
 
-            return [
-                log.eventId || "",
-                log.eventType || "",
-                log.truckNumber || "",
-                log.timestamp || "",
-                (log.siteName || "").trim(),
-                log.pageUrl || "",
-                attempts,
-                log.validationType || log.eventType || "",
-                log.monitorName || "",
-                lastAttempt ? (lastAttempt.contactMade ? "Contacted" : "No Contact") : "",
-                lastAttempt && lastAttempt.tabRow ? lastAttempt.tabRow.replace(/\t/g, " ") : "",
-            ]
+                return [
+                    log.eventId || "",
+                    log.eventType || "",
+                    log.truckNumber || "",
+                    log.timestamp || "",
+                    (log.siteName || "").trim(),
+                    log.pageUrl || "",
+                    attempts,
+                    resolveValidationValue(log),
+                    log.monitorName || "",
+                    lastAttempt ? (lastAttempt.contactMade ? "Contacted" : "No Contact") : "",
+                    lastAttempt && lastAttempt.tabRow ? lastAttempt.tabRow.replace(/\t/g, " ") : "",
+                ]
                 .map((value) => `"${(value || "").replace(/"/g, '""')}"`)
                 .join(",");
         });
@@ -543,7 +857,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!activeCallState) {
             return;
         }
-        activeCallState.finalValidation = activeCallState.defaultValidation;
+        const normalized = normalizeValidationType(activeCallState.defaultValidation);
+        activeCallState.finalValidation = normalized;
+        validationDisplay.textContent = normalized || "—";
+        setValidationButtonState("yes");
         setValidationConfirmed(true);
         validationEditGroup.classList.add("hidden");
     });
@@ -552,8 +869,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!activeCallState) {
             return;
         }
+        setValidationButtonState("no");
+        setValidationConfirmed(false);
         validationEditGroup.classList.remove("hidden");
-        validationInput.value = activeCallState.finalValidation || activeCallState.defaultValidation;
+        validationInput.value =
+            activeCallState.finalValidation ||
+            activeCallState.detectedValidation ||
+            activeCallState.defaultValidation;
         validationInput.focus();
     });
 
@@ -566,8 +888,10 @@ document.addEventListener("DOMContentLoaded", () => {
             validationInput.focus();
             return;
         }
-        activeCallState.finalValidation = updated;
-        validationDisplay.textContent = updated;
+        const normalized = normalizeValidationType(updated) || updated;
+        activeCallState.finalValidation = normalized;
+        validationDisplay.textContent = normalized || "—";
+        setValidationButtonState("yes");
         validationEditGroup.classList.add("hidden");
         setValidationConfirmed(true);
     });
@@ -576,6 +900,9 @@ document.addEventListener("DOMContentLoaded", () => {
         validationEditGroup.classList.add("hidden");
         if (activeCallState) {
             activeCallState.finalValidation = activeCallState.defaultValidation;
+            validationDisplay.textContent = activeCallState.defaultValidation || "—";
+            setValidationButtonState(null);
+            setValidationConfirmed(false);
         }
     });
 
@@ -590,15 +917,161 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         navigator.clipboard.writeText(text).then(() => {
-            copyTabOutputButton.textContent = "Copied!";
-            setTimeout(() => {
-                copyTabOutputButton.textContent = "Copy to Clipboard";
-            }, 1500);
+            flashButtonFeedback(copyTabOutputButton, "Copied!", 1500);
         });
     });
 
+    if (copyEventTimeButton) {
+        copyEventTimeButton.addEventListener("click", () => {
+            if (!activeCallState || !activeCallState.eventTimeParts) {
+                return;
+            }
+            const { hour = "", minute = "" } = activeCallState.eventTimeParts;
+            if (!hour && !minute) {
+                return;
+            }
+            navigator.clipboard
+                .writeText(`${hour}\t${minute}`)
+                .then(() => flashButtonFeedback(copyEventTimeButton, "Copied!"));
+        });
+    }
+
+    if (copyCallTimeButton) {
+        copyCallTimeButton.addEventListener("click", () => {
+            if (
+                !activeCallState ||
+                !Array.isArray(activeCallState.callTimeParts) ||
+                activeCallState.latestAttemptIndex == null
+            ) {
+                return;
+            }
+
+            const index = activeCallState.latestAttemptIndex;
+            if (index < 0 || index >= activeCallState.callTimeParts.length) {
+                return;
+            }
+
+            const parts = activeCallState.callTimeParts[index] || { hour: "", minute: "" };
+            if (!parts.hour && !parts.minute) {
+                return;
+            }
+
+            navigator.clipboard
+                .writeText(`${parts.hour}\t${parts.minute}`)
+                .then(() => flashButtonFeedback(copyCallTimeButton, "Copied!"));
+        });
+    }
+
+    if (bookmarkSaveButton) {
+        bookmarkSaveButton.addEventListener("click", () => {
+            if (!activeBookmarkId) {
+                closeBookmarkModal();
+                return;
+            }
+
+            const log = getLogById(activeBookmarkId);
+            if (!log) {
+                closeBookmarkModal();
+                return;
+            }
+
+            const comment = bookmarkCommentInput ? bookmarkCommentInput.value.trim() : "";
+            const wasBookmarked = log.bookmarked;
+            log.bookmarked = true;
+            log.comment = comment;
+            saveLogs();
+            updateDisplays(logs);
+            showToast(wasBookmarked ? "Bookmark updated" : "Bookmark added");
+            closeBookmarkModal();
+        });
+    }
+
+    if (bookmarkRemoveButton) {
+        bookmarkRemoveButton.addEventListener("click", () => {
+            if (!activeBookmarkId) {
+                closeBookmarkModal();
+                return;
+            }
+
+            const log = getLogById(activeBookmarkId);
+            if (log) {
+                log.bookmarked = false;
+                log.comment = "";
+                saveLogs();
+                updateDisplays(logs);
+                showToast("Bookmark removed");
+            }
+
+            closeBookmarkModal();
+        });
+    }
+
+    if (bookmarkCancelButton) {
+        bookmarkCancelButton.addEventListener("click", () => {
+            closeBookmarkModal();
+        });
+    }
+
+    if (closeBookmarkModalButton) {
+        closeBookmarkModalButton.addEventListener("click", () => {
+            closeBookmarkModal();
+        });
+    }
+
+    if (bookmarkModal) {
+        bookmarkModal.addEventListener("click", (event) => {
+            if (event.target === bookmarkModal) {
+                closeBookmarkModal();
+            }
+        });
+    }
+
+    if (confirmAcceptButton) {
+        confirmAcceptButton.addEventListener("click", () => {
+            const action = confirmAction;
+            closeConfirmModal();
+            if (typeof action === "function") {
+                action();
+            }
+        });
+    }
+
+    if (confirmCancelButton) {
+        confirmCancelButton.addEventListener("click", () => {
+            closeConfirmModal();
+        });
+    }
+
+    if (closeConfirmButton) {
+        closeConfirmButton.addEventListener("click", () => {
+            closeConfirmModal();
+        });
+    }
+
+    if (confirmModal) {
+        confirmModal.addEventListener("click", (event) => {
+            if (event.target === confirmModal) {
+                closeConfirmModal();
+            }
+        });
+    }
+
     window.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && callModal.classList.contains("show")) {
+        if (event.key !== "Escape") {
+            return;
+        }
+
+        if (bookmarkModal && bookmarkModal.classList.contains("show")) {
+            closeBookmarkModal();
+            return;
+        }
+
+        if (confirmModal && confirmModal.classList.contains("show")) {
+            closeConfirmModal();
+            return;
+        }
+
+        if (callModal.classList.contains("show")) {
             closeCallModal();
         }
     });
