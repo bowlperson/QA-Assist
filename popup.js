@@ -83,8 +83,13 @@ document.addEventListener("DOMContentLoaded", () => {
             : "Scanning mode is currently inactive.";
         scanIndicator.classList.toggle("active", isEnabled);
 
+        const iconPath = isEnabled ? "on.png" : "off.png";
+
+        if (chrome.browserAction && chrome.browserAction.setIcon) {
+            chrome.browserAction.setIcon({ path: iconPath });
+        }
+
         if (statusIcon) {
-            const iconPath = isEnabled ? "on.png" : "off.png";
             statusIcon.src = chrome.runtime.getURL(iconPath);
             statusIcon.alt = `QA Assist ${isEnabled ? "enabled" : "disabled"} status icon`;
         }
