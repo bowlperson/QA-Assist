@@ -390,6 +390,30 @@
             min-height: 80px;
         }
 
+        .copy-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .copy-actions button {
+            flex: 1 1 160px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .copy-actions button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
+        }
+
         .hidden {
             display: none !important;
         }
@@ -515,6 +539,10 @@
                 <div class="form-group" style="margin-top: 0;">
                     <label for="tabOutput">Excel Row</label>
                     <textarea id="tabOutput" readonly></textarea>
+                </div>
+                <div class="copy-actions">
+                    <button id="copyEventTime">Only Copy Event Time</button>
+                    <button id="copyCallTime">Only Copy Call Time</button>
                 </div>
                 <button id="copyTabOutput" class="primary" style="width: 100%; margin-top: 12px;">Copy to Clipboard</button>
             </div>

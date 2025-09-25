@@ -30,11 +30,6 @@
             color: var(--text-primary);
         }
 
-        h1 {
-            font-size: 18px;
-            margin: 0;
-        }
-
         h2 {
             font-size: 15px;
             margin: 0;
@@ -62,6 +57,18 @@
             background: linear-gradient(135deg, rgba(76, 141, 255, 0.35), rgba(17, 20, 26, 0.85));
             border: 1px solid rgba(76, 141, 255, 0.35);
             box-shadow: 0 12px 22px rgba(0, 0, 0, 0.35);
+        }
+
+        .header-identity {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .status-icon {
+            width: 64px;
+            height: auto;
+            display: block;
         }
 
         .header small {
@@ -326,8 +333,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <div>
-                <h1>QA Assist</h1>
+            <div class="header-identity">
+                <img id="statusIcon" class="status-icon" src="off.png" alt="QA Assist status icon">
                 <small>QA Assist Control Center</small>
             </div>
             <div class="status-pill" id="statusPill">

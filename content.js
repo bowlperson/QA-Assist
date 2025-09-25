@@ -11,6 +11,96 @@ function getPageUrl() {
     return window.location.href.split("#")[0];
 }
 
+function normalizeValidationType(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+        return "";
+    }
+
+    const lower = text.toLowerCase();
+
+    if (lower.includes("blocked")) {
+        return "Blocked";
+    }
+    if (lower.includes("critical")) {
+        return "Critical";
+    }
+    if (lower.includes("moderate")) {
+        return "Moderate";
+    }
+    if (lower.includes("low")) {
+        return "3 Low/hr";
+    }
+    if (lower.includes("cell")) {
+        return "Cellphone";
+    }
+    if (lower.includes("non") || lower.includes("false")) {
+        return "False Positive";
+    }
+    if (lower.includes("lost")) {
+        return "Lost Connection";
+    }
+
+    return text;
+}
+
+function cleanValidationText(text) {
+    if (!text) {
+        return "";
+    }
+
+    return String(text)
+        .replace(/validation\s*type\s*:?/gi, "")
+        .replace(/validation\s*:?/gi, "")
+        .replace(/type\s*:?/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function extractValidationFromContainer(container) {
+    if (!container) {
+        return "";
+    }
+
+    const selectors = [
+        "label.field-validation_type",
+        "label.field-validationtype",
+        "label.field-validation",
+        "[data-field='validation_type']",
+        "[data-name='validation_type']",
+        ".validation-type",
+        ".field-validation_type",
+        ".field-validation",
+    ];
+
+    for (const selector of selectors) {
+        const node = container.querySelector(selector);
+        if (node && node.textContent) {
+            const cleaned = cleanValidationText(node.textContent);
+            if (cleaned) {
+                return cleaned;
+            }
+        }
+    }
+
+    const candidates = Array.from(container.querySelectorAll("label, span, div, p, strong"));
+    for (const node of candidates) {
+        const text = node?.textContent || "";
+        if (!text) {
+            continue;
+        }
+        if (!/validation/i.test(text)) {
+            continue;
+        }
+        const cleaned = cleanValidationText(text);
+        if (cleaned) {
+            return cleaned;
+        }
+    }
+
+    return "";
+}
+
 function collectEventDetails(video) {
     const allRows = document.querySelectorAll(".gvEventListItemPadding");
     const selectedRow = document.querySelector(".gvEventListItemPadding.selected.primarysel");
@@ -22,6 +112,7 @@ function collectEventDetails(video) {
     let eventId = "";
     const pageUrl = getPageUrl();
     let isLastCell = false;
+    let validationType = "";
 
     if (isHideTracking) {
         const selectedItem = document.querySelector(".item.selected");
@@ -40,6 +131,8 @@ function collectEventDetails(video) {
             if (eventIdElement) {
                 eventId = eventIdElement.textContent.trim();
             }
+
+            validationType = extractValidationFromContainer(selectedItem);
         }
     } else if (selectedRow) {
         isLastCell = selectedRow === allRows[allRows.length - 1];
@@ -60,9 +153,19 @@ function collectEventDetails(video) {
         if (timestampElement) {
             timestamp = timestampElement.textContent.trim();
         }
+
+        validationType = extractValidationFromContainer(selectedRow);
     } else {
         console.warn("⚠️ No selected row found for event logging.");
         return null;
+    }
+
+    if (!validationType) {
+        const detailsPanel =
+            document.querySelector(".gvDetailPanel, .gvEventDetails, .event-details, .details-panel") ||
+            selectedRow?.parentElement ||
+            null;
+        validationType = extractValidationFromContainer(detailsPanel) || validationType;
     }
 
     const eventData = {
@@ -72,6 +175,7 @@ function collectEventDetails(video) {
         pageUrl,
         isLastCell,
         eventId,
+        validationType,
     };
 
     return eventData;
@@ -149,8 +253,13 @@ function registerEventLog(eventData) {
     processedEventKeys.add(eventKey);
 
     resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
+        const normalizedValidation = normalizeValidationType(eventData.validationType);
         const enrichedEvent = {
             ...eventData,
+            validationTypeRaw: eventData.validationType || "",
+            validationTypeDetected: eventData.validationType || "",
+            detectedValidation: eventData.validationType || "",
+            validationType: normalizedValidation,
             siteName,
             siteMatchValue,
             createdAt: new Date().toISOString(),

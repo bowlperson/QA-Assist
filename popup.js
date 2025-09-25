@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusDot = document.getElementById("statusDot");
     const scanningBadge = document.getElementById("scanningBadge");
     const scanIndicator = document.getElementById("scanIndicator");
+    const statusIcon = document.getElementById("statusIcon");
     const autoPressNextToggle = document.getElementById("autoPressNext");
     const removeEyeTrackerToggle = document.getElementById("removeEyeTracker");
     const monitorNameInput = document.getElementById("monitorName");
@@ -83,6 +84,12 @@ document.addEventListener("DOMContentLoaded", () => {
             ? "Scanning mode is actively monitoring for new events."
             : "Scanning mode is currently inactive.";
         scanIndicator.classList.toggle("active", isEnabled);
+
+        if (statusIcon) {
+            const iconPath = isEnabled ? "on.png" : "off.png";
+            statusIcon.src = chrome.runtime.getURL(iconPath);
+            statusIcon.alt = `QA Assist ${isEnabled ? "enabled" : "disabled"} status icon`;
+        }
     }
 
     function sendMessageToActiveTab(payload) {
