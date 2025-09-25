@@ -9,17 +9,29 @@
             width: 380px;
         }
 
-        .app-shell.compact {
-            grid-template-columns: 92px minmax(0, 1fr);
+        .popup-wrapper {
+            display: flex;
+            flex-direction: column;
+            min-height: 100%;
         }
 
-        .app-shell.compact .main-content {
-            padding: 20px 20px 28px;
+        .popup-wrapper .main-content {
+            padding: 20px 20px 24px;
+            gap: 16px;
+            flex: 1;
         }
 
-        .app-shell.compact .nav-link {
-            font-size: 11px;
-            padding: 8px 6px;
+        .popup-actions {
+            display: flex;
+            gap: 10px;
+            padding: 0 20px 20px;
+        }
+
+        .popup-actions .nav-link {
+            flex: 1;
+            justify-content: center;
+            font-size: 13px;
+            padding: 10px 0;
         }
 
         .status-card {
@@ -74,19 +86,7 @@
     </style>
 </head>
 <body class="popup">
-    <div class="app-shell compact">
-        <aside class="sidebar">
-            <div class="brand">
-                <img src="icon.png" alt="QA Assist icon" width="28" height="28">
-                <span>QA Assist</span>
-            </div>
-            <nav class="nav-links">
-                <button class="nav-link" id="viewLogs" type="button">Event Log</button>
-                <button class="nav-link" id="openOverrides" type="button">Site Overrides</button>
-                <button class="nav-link" id="openSiteInfo" type="button">Site Info</button>
-                <button class="nav-link" id="openSettings" type="button">Settings</button>
-            </nav>
-        </aside>
+    <div class="popup-wrapper">
         <main class="main-content">
             <section class="card status-card">
                 <div class="status-header">
@@ -159,6 +159,10 @@
                 </div>
             </section>
         </main>
+        <div class="popup-actions">
+            <button class="nav-link" id="viewLogs" type="button">Event Log</button>
+            <button class="nav-link" id="openSettings" type="button">Settings</button>
+        </div>
     </div>
 
     <div class="modal" id="scanConfirm">

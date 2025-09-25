@@ -11,8 +11,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const removeEyeTrackerToggle = document.getElementById("removeEyeTracker");
     const monitorNameInput = document.getElementById("monitorName");
     const viewLogsButton = document.getElementById("viewLogs");
-    const openOverridesButton = document.getElementById("openOverrides");
-    const openSiteInfoButton = document.getElementById("openSiteInfo");
     const overrideBadge = document.getElementById("overrideBadge");
     const openSettingsButton = document.getElementById("openSettings");
 
@@ -200,14 +198,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     viewLogsButton.addEventListener("click", () => {
         chrome.tabs.create({ url: chrome.runtime.getURL("log.html") });
-    });
-
-    openOverridesButton.addEventListener("click", () => {
-        chrome.tabs.create({ url: chrome.runtime.getURL("site-overrides.html") });
-    });
-
-    openSiteInfoButton.addEventListener("click", () => {
-        chrome.tabs.create({ url: chrome.runtime.getURL("site-info.html") });
     });
 
     openSettingsButton.addEventListener("click", () => {
