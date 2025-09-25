@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const editEyeTrackerToggle = document.getElementById("editEyeTracker");
     const saveEditButton = document.getElementById("saveEdit");
     const cancelEditButton = document.getElementById("cancelEdit");
+    const editCloseButton = document.getElementById("editClose");
 
     const toast = document.getElementById("overrideToast");
     const confirmModal = document.getElementById("overrideConfirmModal");
@@ -361,6 +362,9 @@ document.addEventListener("DOMContentLoaded", () => {
     createButton.addEventListener("click", createOverride);
     clearButton.addEventListener("click", clearForm);
     cancelEditButton.addEventListener("click", closeEditModal);
+    if (editCloseButton) {
+        editCloseButton.addEventListener("click", closeEditModal);
+    }
     saveEditButton.addEventListener("click", saveEdit);
 
     if (confirmAcceptButton) {

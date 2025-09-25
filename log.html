@@ -3,635 +3,286 @@
 <head>
     <meta charset="UTF-8">
     <title>QA Assist · Event Log</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        :root {
-            color-scheme: dark;
-            --bg: #0b0e16;
-            --card: #141a27;
-            --border: #1e2636;
-            --text: #eef1ff;
-            --muted: #8793b2;
-            --accent: #4c8dff;
-            --accent-soft: rgba(76, 141, 255, 0.18);
-            --danger: #ff5c8d;
-            --success: #38d98a;
-            --overlay: rgba(5, 9, 16, 0.78);
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            background: linear-gradient(180deg, rgba(76, 141, 255, 0.12), transparent), var(--bg);
-            color: var(--text);
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            padding: 32px 36px 48px;
-        }
-
-        .top-nav {
-            display: inline-flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 24px;
-        }
-
-        .top-nav a {
-            padding: 8px 14px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 600;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .top-nav a:hover,
-        .top-nav a:focus {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-            outline: none;
-        }
-
-        h1 {
-            margin: 0 0 6px;
-            font-size: 28px;
-            letter-spacing: 0.02em;
-        }
-
-        h2 {
-            margin: 0;
-            font-size: 20px;
-        }
-
-        p {
-            color: var(--muted);
-            margin: 4px 0 16px;
-        }
-
-        .header {
-            margin-bottom: 28px;
-        }
-
-        .section {
-            background: var(--card);
-            border-radius: 18px;
-            padding: 24px;
-            margin-bottom: 32px;
-            border: 1px solid var(--border);
-            box-shadow: 0 32px 60px rgba(0, 0, 0, 0.35);
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 18px;
-        }
-
-        .section-header span {
-            color: var(--muted);
-            font-size: 14px;
-        }
-
         .controls {
             display: flex;
-            gap: 16px;
+            gap: 12px;
+            flex-wrap: wrap;
             align-items: center;
-            margin-bottom: 18px;
         }
 
         .controls input[type="text"] {
             flex: 1;
-            padding: 10px 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(12, 16, 26, 0.85);
-            color: var(--text);
-            font-size: 14px;
+            min-width: 220px;
         }
 
         .controls button {
             padding: 10px 16px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text);
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.2s ease;
         }
 
-        .controls button.export {
-            border-color: rgba(76, 141, 255, 0.45);
-            background: var(--accent-soft);
-            color: var(--accent);
-        }
-
-        .controls button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        thead {
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        th,
-        td {
-            padding: 12px 14px;
-            text-align: left;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        th {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--muted);
-        }
-
-        tbody tr:hover {
-            background: rgba(76, 141, 255, 0.08);
-        }
-
-        a {
-            color: var(--accent);
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
-        .tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: rgba(76, 141, 255, 0.12);
-            border: 1px solid rgba(76, 141, 255, 0.35);
-            color: var(--accent);
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .bookmark-button,
-        .call-button {
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            font-size: 16px;
-            transition: transform 0.15s ease;
-        }
-
-        .call-button {
-            color: var(--accent);
-        }
-
-        .call-button:hover,
-        .bookmark-button:hover {
-            transform: scale(1.08);
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            left: 50%;
-            transform: translateX(-50%) translateY(120%);
-            background: rgba(12, 18, 30, 0.94);
-            color: var(--text);
-            padding: 12px 20px;
-            border-radius: 999px;
-            border: 1px solid rgba(76, 141, 255, 0.4);
-            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.4);
-            opacity: 0;
-            transition: opacity 0.25s ease, transform 0.25s ease;
-            pointer-events: none;
-            font-weight: 600;
-            z-index: 900;
-        }
-
-        .toast.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 10px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--muted);
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .badge.success {
-            background: rgba(56, 217, 138, 0.12);
-            color: var(--success);
-            border: 1px solid rgba(56, 217, 138, 0.35);
-        }
-
-        .modal {
-            position: fixed;
-            inset: 0;
-            background: var(--overlay);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            z-index: 999;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-card {
-            width: min(720px, 100%);
-            background: var(--card);
-            border-radius: 20px;
-            border: 1px solid rgba(76, 141, 255, 0.3);
-            box-shadow: 0 48px 80px rgba(0, 0, 0, 0.45);
-            padding: 28px;
-            position: relative;
-        }
-
-        .modal-card.compact {
-            width: min(420px, 100%);
-        }
-
-        .modal-card h3 {
-            margin: 0 0 6px;
-            font-size: 22px;
-        }
-
-        .modal-card .subtitle {
-            color: var(--muted);
-            margin-bottom: 20px;
-        }
-
-        .modal-card textarea {
-            width: 100%;
-            min-height: 110px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(12, 16, 26, 0.85);
-            color: var(--text);
-            padding: 12px 14px;
-            font-family: inherit;
-            font-size: 14px;
-            resize: vertical;
-        }
-
-        .close-modal {
-            position: absolute;
-            top: 18px;
-            right: 18px;
-            border: none;
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--muted);
-            border-radius: 999px;
-            width: 32px;
-            height: 32px;
-            cursor: pointer;
-            font-size: 18px;
-        }
-
-        .grid {
+        .call-summary {
             display: grid;
             gap: 16px;
-        }
-
-        .grid.two {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
 
         .summary-card {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
             padding: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
             display: grid;
-            gap: 6px;
-            font-size: 14px;
+            gap: 8px;
         }
 
-        .summary-card strong {
-            color: var(--muted);
-            font-size: 11px;
+        .summary-card h3 {
+            margin: 0;
+            font-size: 14px;
             text-transform: uppercase;
             letter-spacing: 0.08em;
+            color: var(--muted);
         }
 
-        .choice-buttons {
-            display: inline-flex;
-            gap: 12px;
-        }
-
-        .choice-buttons button {
-            padding: 8px 14px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--text);
-            cursor: pointer;
+        .summary-card .value {
+            font-size: 16px;
             font-weight: 600;
-        }
-
-        .choice-buttons button.active {
-            border-color: rgba(76, 141, 255, 0.45);
-            background: rgba(76, 141, 255, 0.18);
-            color: var(--accent);
         }
 
         .form-group {
-            margin-top: 18px;
+            display: grid;
+            gap: 10px;
         }
 
         .form-group label {
-            display: block;
             font-size: 12px;
+            color: var(--muted);
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            color: var(--muted);
-            margin-bottom: 6px;
-        }
-
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(11, 15, 25, 0.85);
-            color: var(--text);
-            font-size: 14px;
         }
 
         .form-group textarea {
-            min-height: 96px;
-            resize: vertical;
-        }
-
-        .modal-footer {
-            margin-top: 22px;
-            display: flex;
-            justify-content: space-between;
-            gap: 12px;
-        }
-
-        .modal-footer button {
-            flex: 1;
-            padding: 12px 18px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--text);
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .modal-footer.bookmark-actions {
-            align-items: center;
-        }
-
-        .modal-footer.bookmark-actions .button-group {
-            display: flex;
-            gap: 12px;
-        }
-
-        .modal-footer.bookmark-actions button {
-            flex: initial;
-        }
-
-        .modal-footer button.primary {
-            background: linear-gradient(135deg, var(--accent), #6aa2ff);
-            border-color: transparent;
-            color: #fff;
-            box-shadow: 0 12px 24px rgba(76, 141, 255, 0.35);
+            min-height: 120px;
         }
 
         .error-text {
             color: var(--danger);
             font-size: 12px;
-            margin-top: 6px;
-        }
-
-        .result-box {
-            margin-top: 16px;
-            padding: 16px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .result-box textarea {
-            min-height: 80px;
-        }
-
-        .copy-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 12px;
-        }
-
-        .copy-actions button {
-            flex: 1 1 160px;
-            padding: 10px 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--text);
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .copy-actions button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
         }
 
         .hidden {
             display: none !important;
         }
 
-        @media (max-width: 900px) {
-            body {
-                padding: 24px;
-            }
+        .result-box {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+        }
 
-            .modal-card {
-                padding: 22px;
-            }
+        .result-box textarea {
+            width: 100%;
+            min-height: 140px;
+            resize: vertical;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(9, 13, 22, 0.85);
+            color: var(--text);
+            padding: 12px;
+            font-size: 13px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .modal-content h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .modal-content .subtitle {
+            margin: 0 0 8px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .modal-content .tag {
+            justify-content: flex-start;
+            width: fit-content;
+        }
+
+        .modal-content button {
+            min-width: 120px;
+        }
+
+        #bookmarkComment {
+            min-height: 140px;
+            resize: vertical;
+            background: rgba(9, 13, 22, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: var(--text);
+            padding: 12px;
+        }
+
+        #bookmarkActions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
         }
     </style>
 </head>
-<body>
-    <nav class="top-nav" aria-label="QA Assist navigation">
-        <a href="log.html">Event Log</a>
-        <a href="settings.html">Settings</a>
-        <a href="site-overrides.html">Site Overrides</a>
-        <a href="site-info.html">Site Info</a>
-    </nav>
+<body class="full-height">
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="icon.png" alt="QA Assist icon" width="32" height="32">
+                <span>QA Assist</span>
+            </div>
+            <nav class="nav-links">
+                <a class="nav-link active" href="log.html">Event Log</a>
+                <a class="nav-link" href="settings.html">Settings</a>
+                <a class="nav-link" href="site-overrides.html">Site Overrides</a>
+                <a class="nav-link" href="site-info.html">Site Info</a>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="header-block">
+                <div>
+                    <h1>Event log</h1>
+                    <p>Review captured events, manage bookmarks, and prepare call-ready validation notes.</p>
+                </div>
+            </div>
 
-    <header class="header">
-        <h1>QA Assist — Event Log</h1>
-        <p>Review captured activity, manage bookmarks, and initiate call validations.</p>
-    </header>
+            <section class="card table-card" id="bookmarkSection">
+                <div class="card-header">
+                    <h2>Bookmarks</h2>
+                    <span id="bookmarkCount" class="badge subtle">0 items</span>
+                </div>
+                <p class="helper-text">Bookmarked clips stay pinned for quick follow up and call prep.</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>Validation</th>
+                            <th>Timestamp</th>
+                            <th>Site</th>
+                            <th>Notes</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookmarkBody"></tbody>
+                </table>
+            </section>
 
-    <section class="section" id="bookmarkSection">
-        <div class="section-header">
-            <h2>Bookmarked Events</h2>
-            <span id="bookmarkCount" class="badge">0 items</span>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Event</th>
-                    <th>Truck</th>
-                    <th>Timestamp</th>
-                    <th>Validation</th>
-                    <th>Site</th>
-                    <th>Page</th>
-                    <th>Comment</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="bookmarkBody"></tbody>
-        </table>
-    </section>
+            <section class="card table-card">
+                <div class="card-header">
+                    <h2>Recent events</h2>
+                    <span id="eventCount" class="badge subtle">0 items</span>
+                </div>
+                <div class="controls">
+                    <input type="text" id="filterInput" placeholder="Search by event, validation, truck, timestamp, site, or URL...">
+                    <button id="exportCSV" class="secondary">Export CSV</button>
+                    <button id="clearLogs" class="ghost">Clear Logs</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>Validation</th>
+                            <th>Timestamp</th>
+                            <th>Site</th>
+                            <th>Truck</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody"></tbody>
+                </table>
+            </section>
+        </main>
+    </div>
 
-    <section class="section">
-        <div class="section-header">
-            <h2>Recorded Events</h2>
-            <span id="eventCount" class="badge">0 items</span>
-        </div>
-        <div class="controls">
-            <input type="text" id="filterInput" placeholder="Search by event, validation, truck, timestamp, site, or URL...">
-            <button id="exportCSV" class="export">Export CSV</button>
-            <button id="clearLogs">Clear Logs</button>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Event ID</th>
-                    <th>Event Type</th>
-                    <th>Truck</th>
-                    <th>Timestamp</th>
-                    <th>Site</th>
-                    <th>Page URL</th>
-                    <th>Validation Type</th>
-                    <th>Calls</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="logTableBody"></tbody>
-        </table>
-    </section>
-
-    <div class="modal" id="callModal">
-        <div class="modal-card">
+    <div class="modal" id="callModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="callModalTitle">
             <button class="close-modal" id="closeCallModal" title="Close">×</button>
-            <h3>Call Validation</h3>
-            <p class="subtitle">Confirm details for the call log entry and capture the Excel-ready row.</p>
-
-            <div class="grid two" style="margin-bottom: 20px;">
+            <h2 id="callModalTitle">Call validation</h2>
+            <p class="subtitle">Confirm the validation type and outcome before copying into the tracker.</p>
+            <div class="call-summary">
                 <div class="summary-card" id="callSummaryLeft"></div>
                 <div class="summary-card" id="callSummaryRight"></div>
             </div>
-
             <div class="form-group" id="validationPrompt">
-                <label>Validation Type</label>
-                <p style="margin: 0 0 8px; color: var(--muted);">Is this the correct validation type?</p>
-                <div class="choice-buttons" style="margin-bottom: 10px;">
-                    <button type="button" id="validationYes">Yes</button>
-                    <button type="button" id="validationNo">No</button>
+                <label>Is this the correct validation type?</label>
+                <div class="actions">
+                    <button type="button" id="validationYes" class="primary">Yes</button>
+                    <button type="button" id="validationNo" class="ghost">No</button>
                 </div>
                 <div class="tag" id="validationDisplay"></div>
-                <div class="form-group hidden" id="validationEditGroup" style="margin-top: 12px;">
-                    <label for="validationInput">Edit validation type</label>
+                <div class="form-group hidden" id="validationEditGroup">
+                    <label for="validationInput">Adjust validation</label>
                     <input type="text" id="validationInput" placeholder="Enter validation type">
-                    <div class="choice-buttons" style="margin-top: 10px;">
-                        <button type="button" id="saveValidation" class="active">Save</button>
-                        <button type="button" id="cancelValidationEdit">Cancel</button>
+                    <div class="actions">
+                        <button type="button" id="saveValidation" class="primary">Save</button>
+                        <button type="button" id="cancelValidationEdit" class="ghost">Cancel</button>
                     </div>
                 </div>
                 <div class="error-text hidden" id="validationError">Please confirm or adjust the validation type.</div>
             </div>
-
             <div class="form-group">
-                <label for="modalMonitorName">Monitor Name</label>
+                <label for="modalMonitorName">Monitor name</label>
                 <input type="text" id="modalMonitorName" placeholder="Enter monitor name">
                 <div class="error-text hidden" id="monitorError">Please provide a monitor name.</div>
             </div>
-
             <div class="form-group">
-                <label>Contact Made?</label>
-                <div class="choice-buttons">
-                    <button type="button" id="contactYes">Yes</button>
-                    <button type="button" id="contactNo">No</button>
+                <label>Was the contact made?</label>
+                <div class="actions">
+                    <button type="button" id="contactYes" class="primary">Yes</button>
+                    <button type="button" id="contactNo" class="ghost">No</button>
                 </div>
                 <div class="error-text hidden" id="contactError">Select the outcome of the call.</div>
             </div>
-
             <div class="result-box hidden" id="callResultBox">
-                <div class="form-group" style="margin-top: 0;">
-                    <label for="tabOutput">Excel Row</label>
-                    <textarea id="tabOutput" readonly></textarea>
+                <textarea id="tabOutput" readonly></textarea>
+                <div class="actions">
+                    <button id="copyEventTime" type="button" class="secondary">Only Copy Event Time</button>
+                    <button id="copyCallTime" type="button" class="secondary">Only Copy Call Time</button>
                 </div>
-                <div class="copy-actions">
-                    <button id="copyEventTime">Only Copy Event Time</button>
-                    <button id="copyCallTime">Only Copy Call Time</button>
-                </div>
-                <button id="copyTabOutput" class="primary" style="width: 100%; margin-top: 12px;">Copy to Clipboard</button>
+                <button id="copyTabOutput" class="primary" type="button">Copy to clipboard</button>
             </div>
-
             <div class="modal-footer">
                 <button type="button" class="ghost" id="cancelCall">Cancel</button>
-                <button type="button" class="primary" id="saveCall">Save Call</button>
+                <button type="button" class="primary" id="saveCall">Save call</button>
             </div>
         </div>
     </div>
 
     <div class="modal" id="bookmarkModal" aria-hidden="true">
-        <div class="modal-card compact">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="bookmarkTitle">
             <button class="close-modal" id="closeBookmarkModal" title="Close">×</button>
-            <h3>Bookmark Event</h3>
-            <p class="subtitle">Add an optional note to keep track of this event.</p>
+            <h2 id="bookmarkTitle">Bookmark event</h2>
+            <p class="subtitle">Add an optional note to highlight next actions for this clip.</p>
             <textarea id="bookmarkComment" placeholder="Add a quick note (optional)"></textarea>
-            <div class="modal-footer bookmark-actions">
+            <div id="bookmarkActions">
+                <button type="button" id="bookmarkCancel" class="ghost">Cancel</button>
                 <button type="button" id="bookmarkRemove" class="danger hidden">Remove Bookmark</button>
-                <div class="button-group">
-                    <button type="button" id="bookmarkCancel">Cancel</button>
-                    <button type="button" id="bookmarkSave" class="primary">Add Bookmark</button>
-                </div>
+                <button type="button" id="bookmarkSave" class="primary">Add Bookmark</button>
             </div>
         </div>
     </div>
 
     <div class="modal" id="confirmModal" aria-hidden="true">
-        <div class="modal-card compact">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
             <button class="close-modal" id="closeConfirmModal" title="Close">×</button>
-            <h3>Confirm Action</h3>
+            <h2 id="confirmTitle">Confirm action</h2>
             <p class="subtitle" id="confirmMessage">Are you sure?</p>
-            <div class="modal-footer">
-                <button type="button" id="confirmCancel">Cancel</button>
+            <div class="modal-actions">
+                <button type="button" id="confirmCancel" class="ghost">Cancel</button>
                 <button type="button" id="confirmAccept" class="primary">Confirm</button>
             </div>
         </div>

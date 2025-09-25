@@ -3,572 +3,167 @@
 <head>
     <meta charset="UTF-8">
     <title>QA Assist · Settings</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        :root {
-            color-scheme: dark;
-            --bg: #0d1119;
-            --panel: #161c2a;
-            --card: #1d2435;
-            --border: #252f45;
-            --text: #f5f7ff;
-            --muted: #9ba4c4;
-            --accent: #4c8dff;
-            --accent-soft: rgba(76, 141, 255, 0.22);
-            --danger: #ff5c8d;
-            --success: #3dd68c;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            padding: 40px 44px 52px;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(circle at top, rgba(76, 141, 255, 0.14), transparent 55%), var(--bg);
-            color: var(--text);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .top-nav {
-            position: fixed;
-            top: 24px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: inline-flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            padding: 8px 12px;
-            border-radius: 999px;
-            background: rgba(13, 17, 25, 0.78);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            z-index: 10;
-        }
-
-        .top-nav a {
-            padding: 6px 14px;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 600;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .top-nav a:hover,
-        .top-nav a:focus {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-            outline: none;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 28px;
-            left: 50%;
-            transform: translateX(-50%) translateY(140%);
-            background: rgba(18, 24, 36, 0.96);
-            color: var(--text);
-            padding: 12px 22px;
-            border-radius: 999px;
-            border: 1px solid rgba(76, 141, 255, 0.4);
-            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
-            opacity: 0;
-            transition: opacity 0.25s ease, transform 0.25s ease;
-            font-weight: 600;
-            pointer-events: none;
-            z-index: 20;
-        }
-
-        .toast.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-
-        .panel {
-            width: min(960px, 100%);
-            background: var(--panel);
-            border-radius: 26px;
-            border: 1px solid var(--border);
-            padding: 36px;
-            box-shadow: 0 48px 96px rgba(0, 0, 0, 0.35);
-            margin-top: 96px;
-        }
-
-        .panel-header {
-            margin-bottom: 28px;
-        }
-
-        .panel-header h1 {
-            margin: 0;
-            font-size: 30px;
-            letter-spacing: 0.02em;
-        }
-
-        .panel-header p {
-            margin: 10px 0 0;
-            color: var(--muted);
-            max-width: 720px;
-        }
-
-        .settings-section {
-            background: var(--card);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            padding: 24px;
-            margin-bottom: 24px;
-        }
-
-        .settings-section:last-of-type {
-            margin-bottom: 32px;
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            margin-bottom: 16px;
-        }
-
-        .section-header h2 {
-            margin: 0;
-            font-size: 20px;
-        }
-
-        .section-header p {
-            margin: 0;
-            color: var(--muted);
-            font-size: 13px;
-        }
-
-        .helper {
-            margin: 0 0 16px;
-            color: var(--muted);
-            font-size: 13px;
-        }
-
-        label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-            font-size: 14px;
-            color: var(--text);
-        }
-
-        label span {
-            color: inherit;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select {
-            background: rgba(9, 13, 22, 0.82);
-            color: var(--text);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 10px;
-            padding: 8px 10px;
-            font-size: 13px;
-        }
-
-        input[type="number"] {
-            width: 72px;
-        }
-
-        .stack {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .rule {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .rule select {
-            flex: 1;
-        }
-
-        .site-rule {
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 16px;
-            margin-bottom: 12px;
-            background: rgba(10, 14, 24, 0.82);
-            display: grid;
-            gap: 10px;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        }
-
-        .site-rule label {
-            margin: 0;
-            flex-direction: column;
+        .header-block {
             align-items: flex-start;
-            gap: 6px;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--muted);
         }
 
-        .site-rule label span,
-        .site-rule label input,
-        .site-rule label select {
-            font-size: 13px;
-            text-transform: none;
-            letter-spacing: normal;
-            color: var(--text);
+        .card .icon-button {
+            border-radius: 12px;
         }
 
-        .toggle-row {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 600;
-            margin-bottom: 16px;
-        }
-
-        .inline-toggle {
-            margin-bottom: 0;
-        }
-
-        .inline-input {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--muted);
-        }
-
-        button {
-            padding: 8px 14px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text);
-            cursor: pointer;
-            font-weight: 600;
-            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease;
-        }
-
-        button:hover,
-        button:focus {
+        .card .icon-button:hover {
             transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-            outline: none;
+            box-shadow: 0 14px 24px rgba(0, 0, 0, 0.3);
         }
 
-        #addRule,
-        #addSiteRule {
-            background: linear-gradient(135deg, var(--accent), #6aa2ff);
-            border-color: transparent;
-            color: #fff;
-        }
-
-        #addValidationTerm {
-            background: rgba(76, 141, 255, 0.12);
-            border-color: rgba(76, 141, 255, 0.32);
-            color: var(--accent);
-        }
-
-        .icon-button {
-            width: 36px;
-            height: 36px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-        }
-
-        .remove {
-            background: rgba(255, 92, 141, 0.18);
-            border-color: rgba(255, 92, 141, 0.35);
-            color: var(--danger);
-        }
-
-        .disabled {
-            opacity: 0.55;
-        }
-
-        .validation-helper {
-            margin: 0 0 12px;
-            color: var(--muted);
-            font-size: 13px;
-        }
-
-        .validation-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .validation-row {
-            display: grid;
-            grid-template-columns: minmax(180px, 2fr) minmax(220px, 3fr) auto;
-            gap: 12px;
-            align-items: center;
-            padding: 16px;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(10, 14, 24, 0.82);
-        }
-
-        .validation-row label {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            margin: 0;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--muted);
-        }
-
-        .validation-row input[type="text"] {
-            width: 100%;
-        }
-
-        .validation-disabled {
-            opacity: 0.6;
-        }
-
-        .modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(6, 10, 18, 0.72);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 30;
-        }
-
-        .modal-backdrop.show {
-            display: flex;
-        }
-
-        .modal-card {
-            position: relative;
-            width: min(420px, 90vw);
-            background: rgba(18, 24, 36, 0.96);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 20px;
-            padding: 26px 28px 24px;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-            color: var(--text);
-        }
-
-        .modal-card h3 {
-            margin: 0 0 10px;
-            font-size: 20px;
-        }
-
-        .modal-card p {
-            margin: 0 0 20px;
-            color: var(--muted);
-            font-size: 14px;
-        }
-
-        .modal-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-
-        .modal-card .danger {
-            background: rgba(255, 92, 141, 0.2);
-            border-color: rgba(255, 92, 141, 0.45);
-            color: var(--danger);
-        }
-
-        .modal-close {
-            position: absolute;
-            top: 12px;
-            right: 14px;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            background: rgba(255, 255, 255, 0.04);
-            color: var(--muted);
-            font-size: 18px;
-            line-height: 1;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #saveSettings {
-            background: linear-gradient(135deg, var(--accent), #6aa2ff);
-            border-color: transparent;
-            color: #fff;
-            padding: 12px 22px;
-            font-size: 15px;
-            border-radius: 14px;
-        }
-
-        .footer-note {
-            color: var(--muted);
-            font-size: 12px;
-            margin-top: 8px;
-        }
-
-        @media (max-width: 960px) {
-            body {
-                padding: 32px 20px 40px;
-            }
-
-            .top-nav {
-                position: static;
-                transform: none;
-                margin-bottom: 20px;
-            }
-
-            .panel {
-                margin-top: 0;
-            }
+        .card .helper-text {
+            margin-top: -4px;
         }
     </style>
 </head>
-<body>
-    <nav class="top-nav" aria-label="QA Assist navigation">
-        <a href="log.html">Event Log</a>
-        <a href="settings.html">Settings</a>
-        <a href="site-overrides.html">Site Overrides</a>
-        <a href="site-info.html">Site Info</a>
-    </nav>
-
-    <main class="panel">
-        <header class="panel-header">
-            <h1>QA Assist Settings</h1>
-            <p>Configure automation, playback, and scanning preferences. Changes are saved to sync storage so they travel with your QA Assist profile.</p>
-        </header>
-
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Custom Speed</h2>
-                <button id="addRule" class="icon-button" type="button" aria-label="Add custom speed rule">+</button>
+<body class="full-height">
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="icon.png" alt="QA Assist icon" width="32" height="32">
+                <span>QA Assist</span>
             </div>
-            <p class="helper">Map event types to preferred playback speeds for consistent review tempo.</p>
-            <div id="rulesContainer" class="stack"></div>
-        </section>
-
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Smart Skip</h2>
+            <nav class="nav-links">
+                <a class="nav-link" href="log.html">Event Log</a>
+                <a class="nav-link active" href="settings.html">Settings</a>
+                <a class="nav-link" href="site-overrides.html">Site Overrides</a>
+                <a class="nav-link" href="site-info.html">Site Info</a>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="header-block">
+                <div>
+                    <h1>Settings</h1>
+                    <p>Configure automation, playback behaviour, scanning shortcuts, and validation preferences for QA Assist.</p>
+                </div>
             </div>
-            <label class="toggle-row">
-                <input id="smartSkipToggle" type="checkbox"> <span>Enable Smart Skip</span>
-            </label>
-            <label id="skipContainer" class="inline-input">
-                Skip when playback stalls after
-                <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
-            </label>
-        </section>
 
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Looping Mode</h2>
-            </div>
-            <label class="toggle-row">
-                <input id="loopToggle" type="checkbox"> <span>Looping Mode</span>
-            </label>
-            <div class="stack">
-                <label id="loopResetContainer" class="inline-input">
-                    Seconds till "reset"
-                    <input id="loopReset" type="number" min="0" value="10">
+            <section class="card">
+                <div class="card-header">
+                    <h2>Custom speed</h2>
+                    <button id="addRule" class="icon-button" type="button" aria-label="Add custom speed rule">+</button>
+                </div>
+                <p class="helper-text">Map event types to preferred playback speeds for consistent review tempo.</p>
+                <div id="rulesContainer" class="stack"></div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Smart skip</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="smartSkipToggle" type="checkbox"> <span>Enable Smart Skip</span>
                 </label>
-                <label id="loopHoldContainer" class="inline-input">
-                    Seconds held
-                    <input id="loopHold" type="number" min="0" value="5">
+                <label id="skipContainer" class="inline-input">
+                    Skip when playback stalls after
+                    <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
                 </label>
-                <label id="loopFollowContainer" class="toggle-row">
-                    <input id="loopFollow" type="checkbox"> <span>Follow up</span>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Looping mode</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="loopToggle" type="checkbox"> <span>Looping Mode</span>
                 </label>
-            </div>
-        </section>
+                <div class="stack">
+                    <label id="loopResetContainer" class="inline-input">
+                        Seconds till "reset"
+                        <input id="loopReset" type="number" min="0" value="10">
+                    </label>
+                    <label id="loopHoldContainer" class="inline-input">
+                        Seconds held
+                        <input id="loopHold" type="number" min="0" value="5">
+                    </label>
+                    <label id="loopFollowContainer" class="toggle-row">
+                        <input id="loopFollow" type="checkbox"> <span>Follow up</span>
+                    </label>
+                </div>
+            </section>
 
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Simple Auto Skip</h2>
-            </div>
-            <label class="toggle-row">
-                <input id="simpleSkipToggle" type="checkbox"> <span>Enable Simple Auto Skip</span>
-            </label>
-            <label id="simpleSkipDelayContainer" class="inline-input">
-                Skip after
-                <input id="simpleSkipDelay" type="number" min="0" value="5"> seconds
-            </label>
-        </section>
-
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Validation Filter</h2>
-                <label class="toggle-row inline-toggle">
-                    <input id="validationFilterToggle" type="checkbox"> <span>Enable Filter</span>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Simple auto skip</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="simpleSkipToggle" type="checkbox"> <span>Enable Simple Auto Skip</span>
                 </label>
-            </div>
-            <p class="validation-helper">Control which validation labels are auto-detected during call validation. When disabled, the original validation text is used.</p>
-            <div id="validationList" class="validation-list"></div>
-            <button id="addValidationTerm" type="button">Add validation label</button>
-        </section>
+                <label id="simpleSkipDelayContainer" class="inline-input">
+                    Skip after
+                    <input id="simpleSkipDelay" type="number" min="0" value="5"> seconds
+                </label>
+            </section>
 
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Buffer Between Videos</h2>
-            </div>
-            <label class="inline-input">
-                Buffer
-                <input id="keyDelay" type="number" min="0" value="2"> seconds between videos
-            </label>
-        </section>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Validation filter</h2>
+                    <label class="toggle-row inline-toggle">
+                        <input id="validationFilterToggle" type="checkbox"> <span>Enable Filter</span>
+                    </label>
+                </div>
+                <p class="helper-text">Control which validation labels are auto-detected during call validation. When disabled, the original validation text is used.</p>
+                <div id="validationList" class="validation-list"></div>
+                <button id="addValidationTerm" type="button" class="secondary">Add validation label</button>
+            </section>
 
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Site Overrides</h2>
-                <button id="addSiteRule" class="icon-button" type="button" aria-label="Add site override">+</button>
-            </div>
-            <p class="helper">Create domain-specific automation profiles. Overrides apply automatically when the active tab matches the configured pattern.</p>
-            <div id="siteRulesContainer" class="stack"></div>
-        </section>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Buffer between videos</h2>
+                </div>
+                <label class="inline-input">
+                    Buffer
+                    <input id="keyDelay" type="number" min="0" value="2"> seconds between videos
+                </label>
+            </section>
 
-        <section class="settings-section">
-            <div class="section-header">
-                <h2>Scanning Mode</h2>
-            </div>
-            <label class="toggle-row">
-                <input id="scanToggle" type="checkbox"> <span>Enable Scanning Mode</span>
-            </label>
-            <label id="scanHotkeyContainer" class="inline-input">
-                Shortcut
-                <input id="scanHotkey" type="text" value="Ctrl+Shift+K">
-            </label>
-            <label id="scanDurationContainer" class="inline-input">
-                Duration
-                <input id="scanDuration" type="number" min="1" value="60"> seconds
-            </label>
-        </section>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Site overrides</h2>
+                    <button id="addSiteRule" class="icon-button" type="button" aria-label="Add site override">+</button>
+                </div>
+                <p class="helper-text">Create domain-specific automation profiles. Overrides apply automatically when the active tab matches the configured pattern.</p>
+                <div id="siteRulesContainer" class="stack"></div>
+            </section>
 
-        <button id="saveSettings" type="button">Save Settings</button>
-        <p class="footer-note">Settings take effect immediately on the active tab when saved.</p>
-    </main>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Scanning mode</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="scanToggle" type="checkbox"> <span>Enable Scanning Mode</span>
+                </label>
+                <label id="scanHotkeyContainer" class="inline-input">
+                    Shortcut
+                    <input id="scanHotkey" type="text" value="Ctrl+Shift+K">
+                </label>
+                <label id="scanDurationContainer" class="inline-input">
+                    Duration
+                    <input id="scanDuration" type="number" min="1" value="60"> seconds
+                </label>
+            </section>
 
+            <p class="footer-note">Settings take effect immediately on the active tab when saved.</p>
+        </main>
+    </div>
+
+    <button class="primary floating-save" id="saveSettings" type="button">Save settings</button>
     <div class="toast" id="settingsToast" role="status" aria-live="polite"></div>
 
-    <div class="modal-backdrop" id="confirmModal" aria-hidden="true">
-        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+    <div class="modal" id="confirmModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
             <button class="modal-close" id="confirmClose" type="button" aria-label="Close">×</button>
             <h3 id="confirmTitle">Confirm action</h3>
             <p id="confirmMessage">Are you sure you want to continue?</p>
             <div class="modal-actions">
-                <button type="button" id="confirmCancel">Cancel</button>
+                <button type="button" id="confirmCancel" class="ghost">Cancel</button>
                 <button type="button" id="confirmAccept" class="danger">Delete</button>
             </div>
         </div>
