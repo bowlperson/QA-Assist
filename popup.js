@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const statusDot = document.getElementById("statusDot");
     const scanningBadge = document.getElementById("scanningBadge");
     const scanIndicator = document.getElementById("scanIndicator");
+    const statusIcon = document.getElementById("statusIcon");
     const autoPressNextToggle = document.getElementById("autoPressNext");
     const removeEyeTrackerToggle = document.getElementById("removeEyeTracker");
     const monitorNameInput = document.getElementById("monitorName");
@@ -13,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const openOverridesButton = document.getElementById("openOverrides");
     const openSiteInfoButton = document.getElementById("openSiteInfo");
     const overrideBadge = document.getElementById("overrideBadge");
+    const openSettingsButton = document.getElementById("openSettings");
 
     const scanConfirmModal = document.getElementById("scanConfirm");
     const confirmScanButton = document.getElementById("confirmScan");
@@ -82,6 +84,12 @@ document.addEventListener("DOMContentLoaded", () => {
             ? "Scanning mode is actively monitoring for new events."
             : "Scanning mode is currently inactive.";
         scanIndicator.classList.toggle("active", isEnabled);
+
+        if (statusIcon) {
+            const iconPath = isEnabled ? "on.png" : "off.png";
+            statusIcon.src = chrome.runtime.getURL(iconPath);
+            statusIcon.alt = `QA Assist ${isEnabled ? "enabled" : "disabled"} status icon`;
+        }
     }
 
     function sendMessageToActiveTab(payload) {
@@ -200,5 +208,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     openSiteInfoButton.addEventListener("click", () => {
         chrome.tabs.create({ url: chrome.runtime.getURL("site-info.html") });
+    });
+
+    openSettingsButton.addEventListener("click", () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL("settings.html") });
     });
 });

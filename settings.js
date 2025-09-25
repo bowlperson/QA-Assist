@@ -8,6 +8,16 @@ const eventTypes = [
 ];
 const speeds = ['1', '1.25', '1.5', '2'];
 
+const DEFAULT_VALIDATION_VOCABULARY = [
+    { label: 'Blocked', keywords: ['blocked'] },
+    { label: 'Critical', keywords: ['critical'] },
+    { label: 'Moderate', keywords: ['moderate'] },
+    { label: '3 Low/hr', keywords: ['low'] },
+    { label: 'Cellphone', keywords: ['cell phone', 'cellphone', 'cell', 'phone'] },
+    { label: 'False Positive', keywords: ['false', 'non'] },
+    { label: 'Lost Connection', keywords: ['lost connection', 'lost', 'disconnect'] },
+];
+
 document.addEventListener('DOMContentLoaded', () => {
     const rulesContainer = document.getElementById('rulesContainer');
     const addRuleBtn = document.getElementById('addRule');
@@ -33,6 +43,193 @@ document.addEventListener('DOMContentLoaded', () => {
     const scanDurationInput = document.getElementById('scanDuration');
     const scanHotkeyContainer = document.getElementById('scanHotkeyContainer');
     const scanDurationContainer = document.getElementById('scanDurationContainer');
+    const toast = document.getElementById('settingsToast');
+    const validationListContainer = document.getElementById('validationList');
+    const addValidationTermButton = document.getElementById('addValidationTerm');
+    const validationFilterToggle = document.getElementById('validationFilterToggle');
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmMessage = document.getElementById('confirmMessage');
+    const confirmAcceptButton = document.getElementById('confirmAccept');
+    const confirmCancelButton = document.getElementById('confirmCancel');
+    const confirmCloseButton = document.getElementById('confirmClose');
+
+    let toastTimeout = null;
+    let confirmResolver = null;
+
+    function showToast(message) {
+        if (!toast) {
+            return;
+        }
+
+        toast.textContent = message;
+        toast.classList.add('show');
+
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+        }
+
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2200);
+    }
+
+    function closeConfirmModal(result) {
+        if (!confirmModal) {
+            if (confirmResolver) {
+                confirmResolver(Boolean(result));
+                confirmResolver = null;
+            }
+            return;
+        }
+
+        confirmModal.classList.remove('show');
+
+        if (confirmResolver) {
+            confirmResolver(Boolean(result));
+            confirmResolver = null;
+        }
+    }
+
+    function requestConfirmation(message) {
+        if (!confirmModal || !confirmMessage) {
+            return Promise.resolve(true);
+        }
+
+        confirmMessage.textContent = message;
+        confirmModal.classList.add('show');
+
+        return new Promise((resolve) => {
+            confirmResolver = resolve;
+        });
+    }
+
+    if (confirmAcceptButton) {
+        confirmAcceptButton.addEventListener('click', () => closeConfirmModal(true));
+    }
+
+    if (confirmCancelButton) {
+        confirmCancelButton.addEventListener('click', () => closeConfirmModal(false));
+    }
+
+    if (confirmCloseButton) {
+        confirmCloseButton.addEventListener('click', () => closeConfirmModal(false));
+    }
+
+    if (confirmModal) {
+        confirmModal.addEventListener('click', (event) => {
+            if (event.target === confirmModal) {
+                closeConfirmModal(false);
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && confirmModal?.classList.contains('show')) {
+            closeConfirmModal(false);
+        }
+    });
+
+    function cloneDefaultVocabulary() {
+        return DEFAULT_VALIDATION_VOCABULARY.map((entry) => ({
+            label: entry.label,
+            keywords: Array.isArray(entry.keywords) ? [...entry.keywords] : [],
+        }));
+    }
+
+    function sanitizeVocabularyInput(input, { fallback = false } = {}) {
+        if (!Array.isArray(input)) {
+            return fallback ? cloneDefaultVocabulary() : [];
+        }
+
+        const seen = new Set();
+        const sanitized = input
+            .map((entry) => {
+                const label = String(entry?.label || '').trim();
+                if (!label) {
+                    return null;
+                }
+
+                const lowerLabel = label.toLowerCase();
+                if (seen.has(lowerLabel)) {
+                    return null;
+                }
+
+                const keywordSource = Array.isArray(entry?.keywords)
+                    ? entry.keywords
+                    : typeof entry?.keywords === 'string'
+                        ? entry.keywords.split(',')
+                        : [];
+
+                const keywords = Array.from(
+                    new Set(
+                        keywordSource
+                            .concat(label)
+                            .map((keyword) => String(keyword || '').trim())
+                            .filter(Boolean),
+                    ),
+                );
+
+                seen.add(lowerLabel);
+                return { label, keywords };
+            })
+            .filter(Boolean);
+
+        if (!sanitized.length && fallback) {
+            return cloneDefaultVocabulary();
+        }
+
+        return sanitized;
+    }
+
+    function createValidationRow(entry = {}) {
+        if (!validationListContainer) {
+            return null;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'validation-row';
+
+        const labelField = document.createElement('label');
+        labelField.textContent = 'Label';
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'validation-label';
+        labelInput.value = entry.label || '';
+        labelField.appendChild(labelInput);
+
+        const keywordField = document.createElement('label');
+        keywordField.textContent = 'Keywords';
+        const keywordInput = document.createElement('input');
+        keywordInput.type = 'text';
+        keywordInput.className = 'validation-keywords';
+        keywordInput.placeholder = 'Comma separated matches';
+        keywordInput.value = Array.isArray(entry.keywords) ? entry.keywords.join(', ') : '';
+        keywordField.appendChild(keywordInput);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = '×';
+        removeBtn.className = 'remove icon-button';
+        removeBtn.addEventListener('click', async () => {
+            const confirmed = await requestConfirmation('Remove this validation label?');
+            if (confirmed) {
+                row.remove();
+            }
+        });
+
+        row.append(labelField, keywordField, removeBtn);
+        validationListContainer.appendChild(row);
+
+        return labelInput;
+    }
+
+    function updateValidationEnabled() {
+        if (!validationListContainer || !validationFilterToggle) {
+            return;
+        }
+
+        validationListContainer.classList.toggle('validation-disabled', !validationFilterToggle.checked);
+    }
 
     function createSiteRuleRow(rule) {
         const div = document.createElement('div');
@@ -173,7 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '-';
         removeBtn.className = 'remove';
-        removeBtn.addEventListener('click', () => div.remove());
+        removeBtn.addEventListener('click', async () => {
+            const confirmed = await requestConfirmation('Remove this site override?');
+            if (confirmed) {
+                div.remove();
+            }
+        });
 
         div.append(
             urlLabel,
@@ -264,7 +466,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const removeBtn = document.createElement('button');
         removeBtn.textContent = '-';
         removeBtn.className = 'remove';
-        removeBtn.addEventListener('click', () => div.remove());
+        removeBtn.addEventListener('click', async () => {
+            const confirmed = await requestConfirmation('Remove this speed rule?');
+            if (confirmed) {
+                div.remove();
+            }
+        });
 
         div.appendChild(eventSelect);
         div.appendChild(speedSelect);
@@ -275,12 +482,25 @@ document.addEventListener('DOMContentLoaded', () => {
     addRuleBtn.addEventListener('click', () => createRuleRow());
     addSiteRuleBtn.addEventListener('click', () => createSiteRuleRow());
 
+    if (addValidationTermButton) {
+        addValidationTermButton.addEventListener('click', () => {
+            const input = createValidationRow();
+            if (input) {
+                setTimeout(() => input.focus(), 50);
+            }
+        });
+    }
+
+    if (validationFilterToggle) {
+        validationFilterToggle.addEventListener('change', updateValidationEnabled);
+    }
+
     smartSkipToggle.addEventListener('change', updateSkipEnabled);
     simpleSkipToggle.addEventListener('change', updateSimpleSkipEnabled);
     loopToggle.addEventListener('change', updateLoopEnabled);
     scanToggle.addEventListener('change', updateScanEnabled);
 
-    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, simpleAutoSkipEnabled: false, simpleAutoSkipDelay: 5, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {}, scanningEnabled: false, scanHotkey: 'Ctrl+Shift+K', scanDuration: 60 }, data => {
+    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, simpleAutoSkipEnabled: false, simpleAutoSkipDelay: 5, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {}, scanningEnabled: false, scanHotkey: 'Ctrl+Shift+K', scanDuration: 60, validationVocabulary: DEFAULT_VALIDATION_VOCABULARY, validationFilterEnabled: true }, data => {
         const rules = data.customSpeedRules;
         if (rules.length === 0) {
             createRuleRow();
@@ -303,10 +523,18 @@ document.addEventListener('DOMContentLoaded', () => {
         scanToggle.checked = data.scanningEnabled;
         scanHotkeyInput.value = data.scanHotkey || 'Ctrl+Shift+K';
         scanDurationInput.value = data.scanDuration ?? 60;
+        const validations = sanitizeVocabularyInput(data.validationVocabulary, { fallback: true });
+        if (validationListContainer) {
+            validations.forEach((entry) => createValidationRow(entry));
+        }
+        if (validationFilterToggle) {
+            validationFilterToggle.checked = data.validationFilterEnabled ?? true;
+        }
         updateSkipEnabled();
         updateSimpleSkipEnabled();
         updateLoopEnabled();
         updateScanEnabled();
+        updateValidationEnabled();
     });
 
     saveBtn.addEventListener('click', () => {
@@ -335,6 +563,30 @@ document.addEventListener('DOMContentLoaded', () => {
         scanDurationInput.value = scanDuration;
         const scanHotkey = scanHotkeyInput.value || 'Ctrl+Shift+K';
 
+        const vocabularyEntries = [];
+        if (validationListContainer) {
+            validationListContainer.querySelectorAll('.validation-row').forEach((row) => {
+                const labelInput = row.querySelector('.validation-label');
+                const keywordsInput = row.querySelector('.validation-keywords');
+                const label = labelInput ? labelInput.value.trim() : '';
+                if (!label) {
+                    return;
+                }
+
+                const keywords = keywordsInput
+                    ? keywordsInput.value
+                          .split(',')
+                          .map((keyword) => keyword.trim())
+                          .filter(Boolean)
+                    : [];
+
+                vocabularyEntries.push({ label, keywords });
+            });
+        }
+
+        const sanitizedVocabulary = sanitizeVocabularyInput(vocabularyEntries, { fallback: false });
+        const validationFilterEnabled = validationFilterToggle ? validationFilterToggle.checked : true;
+
         const siteRules = {};
         siteRulesContainer.querySelectorAll('.site-rule').forEach(div => {
             const url = div.querySelector('.url').value.trim();
@@ -356,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
             siteRules[url] = cfg;
         });
 
-        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, simpleAutoSkipEnabled: simpleEnabled, simpleAutoSkipDelay: simpleDelay, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules, scanningEnabled: scanEnabled, scanHotkey, scanDuration }, () => {
+        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, simpleAutoSkipEnabled: simpleEnabled, simpleAutoSkipDelay: simpleDelay, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules, scanningEnabled: scanEnabled, scanHotkey, scanDuration, validationVocabulary: sanitizedVocabulary, validationFilterEnabled }, () => {
             chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
                 if (tabs[0]) {
                     chrome.tabs.sendMessage(tabs[0].id, {
@@ -373,11 +625,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         siteRules,
                         scanningEnabled: scanEnabled,
                         scanHotkey,
-                        scanDuration
+                        scanDuration,
+                        validationVocabulary: sanitizedVocabulary,
+                        validationFilterEnabled,
                     });
                 }
             });
-            alert('Settings saved');
+            showToast('Settings saved');
         });
     });
 });

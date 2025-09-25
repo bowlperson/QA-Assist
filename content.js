@@ -7,8 +7,218 @@ let activeOverride = null;
 const processedEventKeys = new Set();
 let mutationObserver = null;
 
+const DEFAULT_VALIDATION_VOCABULARY = [
+    { label: "Blocked", keywords: ["blocked"] },
+    { label: "Critical", keywords: ["critical"] },
+    { label: "Moderate", keywords: ["moderate"] },
+    { label: "3 Low/hr", keywords: ["low"] },
+    { label: "Cellphone", keywords: ["cell phone", "cellphone", "cell", "phone"] },
+    { label: "False Positive", keywords: ["false", "non"] },
+    { label: "Lost Connection", keywords: ["lost connection", "lost", "disconnect"] },
+];
+
+let validationVocabulary = cloneDefaultVocabulary();
+let validationFilterEnabled = true;
+let validationMatchers = buildValidationMatchers(validationVocabulary);
+
 function getPageUrl() {
     return window.location.href.split("#")[0];
+}
+
+function cloneDefaultVocabulary() {
+    return DEFAULT_VALIDATION_VOCABULARY.map((entry) => ({
+        label: entry.label,
+        keywords: Array.isArray(entry.keywords) ? [...entry.keywords] : [],
+    }));
+}
+
+function sanitizeVocabularyInput(input) {
+    if (!Array.isArray(input)) {
+        return cloneDefaultVocabulary();
+    }
+
+    const seen = new Set();
+    const sanitized = input
+        .map((entry) => {
+            const label = String(entry?.label || "").trim();
+            if (!label) {
+                return null;
+            }
+
+            const lowerLabel = label.toLowerCase();
+            if (seen.has(lowerLabel)) {
+                return null;
+            }
+
+            const keywordSource = Array.isArray(entry?.keywords)
+                ? entry.keywords
+                : typeof entry?.keywords === "string"
+                    ? entry.keywords.split(",")
+                    : [];
+
+            const keywords = Array.from(
+                new Set(
+                    keywordSource
+                        .concat(label)
+                        .map((keyword) => String(keyword || "").trim())
+                        .filter(Boolean),
+                ),
+            );
+
+            seen.add(lowerLabel);
+            return { label, keywords };
+        })
+        .filter(Boolean);
+
+    return sanitized.length ? sanitized : cloneDefaultVocabulary();
+}
+
+function escapeRegExp(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildValidationMatchers(list) {
+    return list.map((entry) => {
+        const keywords = Array.isArray(entry.keywords) ? entry.keywords : [];
+        const normalizedKeywords = Array.from(
+            new Set(keywords.concat(entry.label).map((keyword) => String(keyword || "").trim()).filter(Boolean)),
+        );
+
+        const regexes = normalizedKeywords
+            .map((keyword) => {
+                if (!keyword) {
+                    return null;
+                }
+                if (/^[\w\s]+$/.test(keyword)) {
+                    return new RegExp(`\\b${escapeRegExp(keyword)}\\b`, "i");
+                }
+                return null;
+            })
+            .filter(Boolean);
+
+        const lowerKeywords = normalizedKeywords.map((keyword) => keyword.toLowerCase());
+
+        return {
+            label: entry.label,
+            regexes,
+            lowerKeywords,
+        };
+    });
+}
+
+function findValidationLabel(text) {
+    const cleaned = String(text || "").trim();
+    if (!cleaned) {
+        return "";
+    }
+
+    const lower = cleaned.toLowerCase();
+
+    for (const matcher of validationMatchers) {
+        if (matcher.regexes.some((regex) => regex.test(cleaned))) {
+            return matcher.label;
+        }
+
+        if (matcher.lowerKeywords.some((keyword) => keyword && lower.includes(keyword))) {
+            return matcher.label;
+        }
+    }
+
+    return "";
+}
+
+function applyValidationPreferences(rawList, filterEnabled) {
+    validationVocabulary = sanitizeVocabularyInput(rawList);
+    validationFilterEnabled = typeof filterEnabled === "boolean" ? filterEnabled : true;
+    validationMatchers = buildValidationMatchers(validationVocabulary);
+}
+
+function normalizeValidationType(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+        return "";
+    }
+
+    if (!validationFilterEnabled) {
+        return text;
+    }
+
+    const matched = findValidationLabel(text);
+    return matched || text;
+}
+
+function looksLikeValidationLabel(text) {
+    if (!text) {
+        return false;
+    }
+
+    const cleaned = String(text).trim();
+    if (!cleaned) {
+        return false;
+    }
+
+    if (findValidationLabel(cleaned)) {
+        return true;
+    }
+
+    return /validation/i.test(cleaned);
+}
+
+function cleanValidationText(text) {
+    if (!text) {
+        return "";
+    }
+
+    return String(text)
+        .replace(/validation\s*type\s*:?/gi, "")
+        .replace(/validation\s*:?/gi, "")
+        .replace(/type\s*:?/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function extractValidationFromContainer(container) {
+    if (!container) {
+        return "";
+    }
+
+    const selectors = [
+        "label.field-validation_type",
+        "label.field-validationtype",
+        "label.field-validation",
+        "[data-field='validation_type']",
+        "[data-name='validation_type']",
+        ".validation-type",
+        ".field-validation_type",
+        ".field-validation",
+    ];
+
+    for (const selector of selectors) {
+        const node = container.querySelector(selector);
+        if (node && node.textContent) {
+            const cleaned = cleanValidationText(node.textContent);
+            if (cleaned) {
+                return cleaned;
+            }
+        }
+    }
+
+    const candidates = Array.from(container.querySelectorAll("label, span, div, p, strong"));
+    for (const node of candidates) {
+        const text = node?.textContent || "";
+        if (!text) {
+            continue;
+        }
+        if (!/validation/i.test(text)) {
+            continue;
+        }
+        const cleaned = cleanValidationText(text);
+        if (cleaned) {
+            return cleaned;
+        }
+    }
+
+    return "";
 }
 
 function collectEventDetails(video) {
@@ -22,6 +232,7 @@ function collectEventDetails(video) {
     let eventId = "";
     const pageUrl = getPageUrl();
     let isLastCell = false;
+    let validationType = "";
 
     if (isHideTracking) {
         const selectedItem = document.querySelector(".item.selected");
@@ -40,13 +251,19 @@ function collectEventDetails(video) {
             if (eventIdElement) {
                 eventId = eventIdElement.textContent.trim();
             }
+
+            validationType = extractValidationFromContainer(selectedItem);
         }
     } else if (selectedRow) {
         isLastCell = selectedRow === allRows[allRows.length - 1];
 
-        const eventTypeElement = selectedRow.querySelector(".gvEventListItemRight[style*='color']");
         const truckNumberElements = selectedRow.querySelectorAll(".gvEventListItemLeft");
         const timestampElement = selectedRow.querySelector(".gvEventListItemRight[style*='width: 90%']");
+        const rightSideElements = Array.from(selectedRow.querySelectorAll(".gvEventListItemRight"))
+            .filter((node) => {
+                const styleAttr = (node.getAttribute("style") || "").toLowerCase();
+                return styleAttr.includes("color");
+            });
 
         if (truckNumberElements.length > 0) {
             eventId = (truckNumberElements[0]?.textContent || "").trim();
@@ -54,16 +271,43 @@ function collectEventDetails(video) {
         if (truckNumberElements.length > 1) {
             truckNumber = (truckNumberElements[1]?.textContent || "").trim();
         }
-        if (eventTypeElement) {
-            eventType = eventTypeElement.textContent.trim();
+        if (rightSideElements.length) {
+            const primary = (rightSideElements[0]?.textContent || "").trim();
+            if (primary) {
+                eventType = primary;
+            }
+
+            const secondary = rightSideElements
+                .slice(1)
+                .map((node) => (node?.textContent || "").trim())
+                .find((text) => looksLikeValidationLabel(text));
+
+            if (secondary) {
+                validationType = secondary;
+            }
         }
         if (timestampElement) {
             timestamp = timestampElement.textContent.trim();
+        }
+
+        if (!validationType) {
+            validationType = extractValidationFromContainer(selectedRow);
         }
     } else {
         console.warn("⚠️ No selected row found for event logging.");
         return null;
     }
+
+    if (!validationType) {
+        const detailsPanel =
+            document.querySelector(".gvDetailPanel, .gvEventDetails, .event-details, .details-panel") ||
+            selectedRow?.parentElement ||
+            null;
+        validationType = extractValidationFromContainer(detailsPanel) || validationType;
+    }
+
+    const cleanedValidation = (validationType || "").trim();
+    const normalizedValidation = normalizeValidationType(cleanedValidation);
 
     const eventData = {
         eventType,
@@ -72,6 +316,8 @@ function collectEventDetails(video) {
         pageUrl,
         isLastCell,
         eventId,
+        validationType: normalizedValidation || cleanedValidation,
+        validationTypeRaw: cleanedValidation,
     };
 
     return eventData;
@@ -149,8 +395,14 @@ function registerEventLog(eventData) {
     processedEventKeys.add(eventKey);
 
     resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
+        const rawValidation = eventData.validationTypeRaw || eventData.validationType || "";
+        const normalizedValidation = normalizeValidationType(rawValidation);
         const enrichedEvent = {
             ...eventData,
+            validationTypeRaw: rawValidation,
+            validationTypeDetected: rawValidation,
+            detectedValidation: rawValidation,
+            validationType: normalizedValidation,
             siteName,
             siteMatchValue,
             createdAt: new Date().toISOString(),
@@ -335,8 +587,18 @@ function applyOverrideSettings(override) {
 
 function loadSettingsAndInitialize() {
     chrome.storage.sync.get(
-        ["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "siteOverrides"],
+        [
+            "enabled",
+            "playbackSpeed",
+            "pressKey",
+            "autoPressNext",
+            "removeEyeTracker",
+            "siteOverrides",
+            "validationVocabulary",
+            "validationFilterEnabled",
+        ],
         (data) => {
+            applyValidationPreferences(data.validationVocabulary, data.validationFilterEnabled);
             isEnabled = data.enabled || false;
             playbackSpeed = parseFloat(data.playbackSpeed) || 1.0;
             pressKey = data.pressKey || "ArrowDown";
@@ -391,6 +653,27 @@ chrome.runtime.onMessage.addListener((request) => {
     if (request.siteOverrides) {
         const override = findOverrideForUrl(window.location.href, request.siteOverrides);
         applyOverrideSettings(override);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(request, "validationVocabulary") ||
+        Object.prototype.hasOwnProperty.call(request, "validationFilterEnabled")) {
+        applyValidationPreferences(request.validationVocabulary, request.validationFilterEnabled);
+    }
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "sync") {
+        return;
+    }
+
+    const vocabChange = changes.validationVocabulary;
+    const filterChange = changes.validationFilterEnabled;
+
+    if (vocabChange || filterChange) {
+        applyValidationPreferences(
+            vocabChange ? vocabChange.newValue : validationVocabulary,
+            filterChange ? filterChange.newValue : validationFilterEnabled,
+        );
     }
 });
 
