@@ -2,509 +2,207 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Project Time Weaver · Site Overrides</title>
+    <title>QA Assist · Site Overrides</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        :root {
-            color-scheme: dark;
-            --bg: #070b13;
-            --card: #121927;
-            --border: #1c2434;
-            --text: #f2f5ff;
-            --muted: #8a96b5;
-            --accent: #4c8dff;
-            --accent-glow: rgba(76, 141, 255, 0.28);
-            --danger: #ff5c8d;
-            --success: #3dd68c;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            padding: 38px 42px 60px;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background: radial-gradient(circle at top right, rgba(76, 141, 255, 0.12), transparent 55%), var(--bg);
-            color: var(--text);
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 32px;
-            letter-spacing: 0.02em;
-        }
-
-        p {
-            color: var(--muted);
-            font-size: 15px;
-            margin: 12px 0 28px;
-            max-width: 720px;
-        }
-
-        .card {
-            background: var(--card);
-            border-radius: 22px;
-            border: 1px solid var(--border);
-            padding: 28px;
-            margin-bottom: 28px;
-            box-shadow: 0 48px 80px rgba(0, 0, 0, 0.35);
-        }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-        }
-
-        .card-header h2 {
-            margin: 0;
-            font-size: 22px;
-        }
-
-        .tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--muted);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .grid {
+        .override-form {
             display: grid;
             gap: 18px;
         }
 
-        .grid.two {
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        .override-form .form-grid {
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
 
-        .override-card {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 18px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            padding: 22px;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        .override-card header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .override-card header h3 {
-            margin: 0;
-            font-size: 20px;
-        }
-
-        .chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: 999px;
-            background: rgba(76, 141, 255, 0.12);
-            color: var(--accent);
+        .form-note {
             font-size: 12px;
-            border: 1px solid rgba(76, 141, 255, 0.32);
-        }
-
-        .chip.success {
-            background: rgba(61, 214, 140, 0.15);
-            border-color: rgba(61, 214, 140, 0.35);
-            color: var(--success);
-        }
-
-        .chip.warning {
-            background: rgba(255, 92, 141, 0.12);
-            border-color: rgba(255, 92, 141, 0.32);
-            color: var(--danger);
-        }
-
-        .settings-list {
-            display: grid;
-            gap: 8px;
-            font-size: 13px;
             color: var(--muted);
         }
 
-        .settings-list strong {
-            color: var(--text);
-            font-weight: 600;
-            margin-right: 6px;
-        }
-
-        .actions {
+        .override-actions {
             display: flex;
-            gap: 10px;
-        }
-
-        button {
-            border: none;
-            border-radius: 14px;
-            padding: 10px 16px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        button.primary {
-            background: linear-gradient(135deg, var(--accent), #6aa2ff);
-            color: #fff;
-            box-shadow: 0 14px 28px rgba(76, 141, 255, 0.35);
-        }
-
-        button.ghost {
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--muted);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-        }
-
-        button.danger {
-            background: rgba(255, 92, 141, 0.12);
-            color: var(--danger);
-            border: 1px solid rgba(255, 92, 141, 0.32);
-        }
-
-        button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
-        }
-
-        label {
-            display: block;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--muted);
-            margin-bottom: 6px;
-        }
-
-        input[type="text"],
-        select {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(10, 14, 24, 0.85);
-            color: var(--text);
-            font-size: 14px;
-        }
-
-        .toggle {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 14px;
-            padding: 14px 18px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .toggle span {
-            font-size: 13px;
-            color: var(--muted);
-        }
-
-        .switch {
-            position: relative;
-            width: 44px;
-            height: 24px;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            inset: 0;
-            background: rgba(255, 255, 255, 0.18);
-            border-radius: 999px;
-            transition: background 0.2s ease;
-        }
-
-        .slider::before {
-            content: "";
-            position: absolute;
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            top: 3px;
-            border-radius: 50%;
-            background: #0b101b;
-            transition: transform 0.2s ease;
-        }
-
-        .switch input:checked + .slider {
-            background: linear-gradient(135deg, var(--accent), #6aa2ff);
-            box-shadow: 0 0 12px var(--accent-glow);
-        }
-
-        .switch input:checked + .slider::before {
-            transform: translateX(20px);
-            background: #fff;
-        }
-
-        .form-grid {
-            display: grid;
-            gap: 20px;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-        }
-
-        .form-footer {
-            margin-top: 20px;
-            display: flex;
-            justify-content: flex-end;
             gap: 12px;
-        }
-
-        .empty-state {
-            text-align: center;
-            color: var(--muted);
-            padding: 36px 20px;
-            border: 1px dashed rgba(255, 255, 255, 0.12);
-            border-radius: 16px;
-        }
-
-        .modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(7, 10, 18, 0.72);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            z-index: 999;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-card {
-            width: min(640px, 100%);
-            background: var(--card);
-            border-radius: 20px;
-            border: 1px solid rgba(76, 141, 255, 0.35);
-            padding: 26px;
-            box-shadow: 0 48px 80px rgba(0, 0, 0, 0.45);
-        }
-
-        .modal-card h3 {
-            margin: 0 0 18px;
-        }
-
-        .modal-footer {
-            margin-top: 22px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: rgba(10, 14, 24, 0.92);
-            padding: 14px 18px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            color: var(--text);
-            font-size: 13px;
-            display: none;
-            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
-        }
-
-        .toast.show {
-            display: block;
-        }
-
-        @media (max-width: 960px) {
-            body {
-                padding: 26px;
-            }
+            flex-wrap: wrap;
         }
     </style>
 </head>
-<body>
-    <header>
-        <h1>Site Overrides</h1>
-        <p>Create site-specific behaviours for playback, automation, and scanning. Overrides are applied whenever the current tab matches the configured domain.</p>
-    </header>
-
-    <section class="card">
-        <div class="card-header">
-            <h2>Configured Overrides</h2>
-            <span class="tag" id="overrideCount">0 overrides</span>
-        </div>
-        <div id="overrideContainer" class="grid two">
-            <div class="empty-state" id="overrideEmpty">No overrides created yet.</div>
-        </div>
-    </section>
-
-    <section class="card">
-        <div class="card-header">
-            <h2>Create Override</h2>
-            <span class="tag">New profile</span>
-        </div>
-        <div class="form-grid">
-            <div>
-                <label for="overrideName">Display Name</label>
-                <input type="text" id="overrideName" placeholder="e.g., Maules Creek Ops">
+<body class="full-height">
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="icon.png" alt="QA Assist icon" width="32" height="32">
+                <span>QA Assist</span>
             </div>
-            <div>
-                <label for="overridePattern">Domain / Pattern</label>
-                <input type="text" id="overridePattern" placeholder="e.g., 10.20.250.1">
-            </div>
-            <div>
-                <label for="overrideSpeed">Playback Speed</label>
-                <select id="overrideSpeed">
-                    <option value="1">1x</option>
-                    <option value="1.25">1.25x</option>
-                    <option value="1.5">1.5x</option>
-                    <option value="2">2x</option>
-                </select>
-            </div>
-            <div>
-                <label for="overrideKey">Key Mapping</label>
-                <select id="overrideKey">
-                    <option value="ArrowRight">OAS (➡)</option>
-                    <option value="ArrowDown">OpWeb (⬇)</option>
-                </select>
-            </div>
-        </div>
-        <div class="grid" style="margin-top: 18px;">
-            <div class="toggle">
-                <span>Enable scanning automatically</span>
-                <label class="switch">
-                    <input type="checkbox" id="overrideEnableScanning">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle">
-                <span>Override playback speed</span>
-                <label class="switch">
-                    <input type="checkbox" id="overrideSpeedToggle">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle">
-                <span>Override key mapping</span>
-                <label class="switch">
-                    <input type="checkbox" id="overrideKeyToggle">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle">
-                <span>Auto Press Next</span>
-                <label class="switch">
-                    <input type="checkbox" id="overrideAutoPress">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="toggle">
-                <span>Remove Eye Tracker</span>
-                <label class="switch">
-                    <input type="checkbox" id="overrideEyeTracker">
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>
-        <div class="form-footer">
-            <button class="ghost" id="clearOverrideForm">Clear</button>
-            <button class="primary" id="createOverride">Save Override</button>
-        </div>
-    </section>
-
-    <div class="modal" id="editModal">
-        <div class="modal-card">
-            <h3>Edit Override</h3>
-            <div class="form-grid">
+            <nav class="nav-links">
+                <a class="nav-link" href="log.html">Event Log</a>
+                <a class="nav-link" href="settings.html">Settings</a>
+                <a class="nav-link active" href="site-overrides.html">Site Overrides</a>
+                <a class="nav-link" href="site-info.html">Site Info</a>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="header-block">
                 <div>
-                    <label for="editName">Display Name</label>
+                    <h1>Site overrides</h1>
+                    <p>Create domain-specific automation profiles that take precedence over your global settings.</p>
+                </div>
+                <span class="tag" id="overrideCount">0 overrides</span>
+            </div>
+
+            <section class="card table-card">
+                <div class="card-header">
+                    <h2>Existing overrides</h2>
+                </div>
+                <div id="overrideContainer" class="grid two">
+                    <div class="empty-state" id="overrideEmpty">No overrides created yet.</div>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Create override</h2>
+                </div>
+                <p class="form-note">Provide a friendly name and host pattern. Optional controls let you customise playback, key mapping, and scanning behaviour for matching sites.</p>
+                <div class="override-form">
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="overrideName">Override name</label>
+                            <input type="text" id="overrideName" placeholder="e.g., Maules Creek Ops">
+                        </div>
+                        <div class="form-row">
+                            <label for="overridePattern">Host or domain</label>
+                            <input type="text" id="overridePattern" placeholder="e.g., 10.20.250.1">
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="overrideSpeed">Playback speed</label>
+                            <select id="overrideSpeed">
+                                <option value="1">1x</option>
+                                <option value="1.25">1.25x</option>
+                                <option value="1.5">1.5x</option>
+                                <option value="2">2x</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label for="overrideKey">Key mapping</label>
+                            <select id="overrideKey">
+                                <option value="ArrowRight">OAS (→)</option>
+                                <option value="ArrowDown">OpWeb (↓)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid two">
+                        <label class="checkbox">
+                            <input type="checkbox" id="overrideEnableScanning">
+                            <span>Enable scanning automatically</span>
+                        </label>
+                        <label class="checkbox">
+                            <input type="checkbox" id="overrideAutoPress">
+                            <span>Auto press Next</span>
+                        </label>
+                        <label class="checkbox">
+                            <input type="checkbox" id="overrideEyeTracker">
+                            <span>Remove eye tracker overlay</span>
+                        </label>
+                    </div>
+
+                    <div class="grid two">
+                        <label class="checkbox">
+                            <input type="checkbox" id="overrideSpeedToggle">
+                            <span>Override playback speed</span>
+                        </label>
+                        <label class="checkbox">
+                            <input type="checkbox" id="overrideKeyToggle">
+                            <span>Override key mapping</span>
+                        </label>
+                    </div>
+
+                    <div class="override-actions">
+                        <button class="ghost" id="clearOverrideForm" type="button">Clear form</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <button class="primary floating-save" id="createOverride" type="button">Save override</button>
+    <div class="toast" id="overrideToast"></div>
+
+    <div class="modal" id="editModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+            <button class="modal-close" id="editClose" type="button" aria-label="Close">×</button>
+            <h3 id="editTitle">Edit override</h3>
+            <div class="stack">
+                <div class="form-row">
+                    <label for="editName">Override name</label>
                     <input type="text" id="editName">
                 </div>
-                <div>
-                    <label for="editPattern">Domain / Pattern</label>
+                <div class="form-row">
+                    <label for="editPattern">Host or domain</label>
                     <input type="text" id="editPattern">
                 </div>
-                <div>
-                    <label for="editSpeed">Playback Speed</label>
-                    <select id="editSpeed">
-                        <option value="1">1x</option>
-                        <option value="1.25">1.25x</option>
-                        <option value="1.5">1.5x</option>
-                        <option value="2">2x</option>
-                    </select>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <label for="editSpeed">Playback speed</label>
+                        <select id="editSpeed">
+                            <option value="1">1x</option>
+                            <option value="1.25">1.25x</option>
+                            <option value="1.5">1.5x</option>
+                            <option value="2">2x</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label for="editKey">Key mapping</label>
+                        <select id="editKey">
+                            <option value="ArrowRight">OAS (→)</option>
+                            <option value="ArrowDown">OpWeb (↓)</option>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label for="editKey">Key Mapping</label>
-                    <select id="editKey">
-                        <option value="ArrowRight">OAS (➡)</option>
-                        <option value="ArrowDown">OpWeb (⬇)</option>
-                    </select>
-                </div>
-            </div>
-            <div class="grid" style="margin-top: 18px;">
-                <div class="toggle">
-                    <span>Enable scanning automatically</span>
-                    <label class="switch">
+                <div class="grid two">
+                    <label class="checkbox">
                         <input type="checkbox" id="editEnableScanning">
-                        <span class="slider"></span>
+                        <span>Enable scanning automatically</span>
                     </label>
-                </div>
-                <div class="toggle">
-                    <span>Override playback speed</span>
-                    <label class="switch">
-                        <input type="checkbox" id="editSpeedToggle">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="toggle">
-                    <span>Override key mapping</span>
-                    <label class="switch">
-                        <input type="checkbox" id="editKeyToggle">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="toggle">
-                    <span>Auto Press Next</span>
-                    <label class="switch">
+                    <label class="checkbox">
                         <input type="checkbox" id="editAutoPress">
-                        <span class="slider"></span>
+                        <span>Auto press Next</span>
+                    </label>
+                    <label class="checkbox">
+                        <input type="checkbox" id="editEyeTracker">
+                        <span>Remove eye tracker overlay</span>
                     </label>
                 </div>
-                <div class="toggle">
-                    <span>Remove Eye Tracker</span>
-                    <label class="switch">
-                        <input type="checkbox" id="editEyeTracker">
-                        <span class="slider"></span>
+                <div class="grid two">
+                    <label class="checkbox">
+                        <input type="checkbox" id="editSpeedToggle">
+                        <span>Override playback speed</span>
+                    </label>
+                    <label class="checkbox">
+                        <input type="checkbox" id="editKeyToggle">
+                        <span>Override key mapping</span>
                     </label>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="ghost" id="cancelEdit">Cancel</button>
-                <button class="primary" id="saveEdit">Save Changes</button>
+            <div class="modal-actions">
+                <button class="ghost" id="cancelEdit" type="button">Cancel</button>
+                <button class="primary" id="saveEdit" type="button">Save changes</button>
             </div>
         </div>
     </div>
 
-    <div class="toast" id="overrideToast"></div>
+    <div class="modal" id="overrideConfirmModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-describedby="overrideConfirmMessage">
+            <p id="overrideConfirmMessage" class="form-note">Are you sure you want to remove this override?</p>
+            <div class="modal-actions">
+                <button class="ghost" id="overrideConfirmCancel" type="button">Cancel</button>
+                <button class="primary" id="overrideConfirmAccept" type="button">Delete</button>
+            </div>
+        </div>
+    </div>
 
     <script src="site-overrides.js"></script>
 </body>
