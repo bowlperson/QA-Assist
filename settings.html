@@ -1,147 +1,174 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Settings</title>
+    <meta charset="UTF-8">
+    <title>QA Assist · Settings</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #222;
-            color: #fff;
-            padding: 20px;
+        .header-block {
+            align-items: flex-start;
         }
-        h2 {
-            margin-top: 0;
+
+        .card .icon-button {
+            border-radius: 12px;
         }
-        .rule {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
+
+        .card .icon-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 24px rgba(0, 0, 0, 0.3);
         }
-        .site-rule {
-            border: 1px solid #555;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        .site-rule label {
-            display: block;
-            margin-top: 5px;
-        }
-        select {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px;
-            border-radius: 5px;
-        }
-        button {
-            padding: 5px 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        #addRule {
-            background-color: #28a745;
-            color: #fff;
-        }
-        .remove {
-            background-color: #dc3545;
-            color: #fff;
-        }
-        input[type="number"] {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px;
-            border-radius: 5px;
-            width: 60px;
-        }
-        input[type="text"] {
-            background-color: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 5px;
-            border-radius: 5px;
-        }
-        #addSiteRule {
-            background-color: #28a745;
-            color: #fff;
-        }
-        .disabled {
-            opacity: 0.5;
-            pointer-events: none;
-        }
-        #saveSettings {
-            background-color: #007bff;
-            color: #fff;
-            margin-top: 10px;
+
+        .card .helper-text {
+            margin-top: -4px;
         }
     </style>
 </head>
-<body>
-    <h2>Settings</h2>
-    <h3>Custom Speed</h3>
-    <div id="rulesContainer"></div>
-    <button id="addRule">+</button>
-    <br>
-    <h3>Smart Skip</h3>
-    <label>
-        <input id="smartSkipToggle" type="checkbox"> Enable Smart Skip
-    </label>
-    <br>
-    <h3>Looping Mode</h3>
-    <label>
-        <input id="loopToggle" type="checkbox"> Looping Mode
-    </label>
-    <br>
-    <label id="loopResetContainer">
-        Seconds till "reset" <input id="loopReset" type="number" min="0" value="10">
-    </label>
-    <br>
-    <label id="loopHoldContainer">
-        Seconds held <input id="loopHold" type="number" min="0" value="5">
-    </label>
-    <br>
-    <label id="loopFollowContainer">
-        <input id="loopFollow" type="checkbox"> Follow up
-    </label>
-    <br>
-    <label id="skipContainer">
-        If No Video Playback is detected then skip after
-        <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
-    </label>
-    <br>
-    <h3>Simple Auto Skip</h3>
-    <label>
-        <input id="simpleSkipToggle" type="checkbox"> Enable Simple Auto Skip
-    </label>
-    <br>
-    <label id="simpleSkipDelayContainer">
-        Skip after <input id="simpleSkipDelay" type="number" min="0" value="5"> seconds
-    </label>
-    <br>
-    <h3>Site Overrides</h3>
-    <div id="siteRulesContainer"></div>
-    <button id="addSiteRule">+</button>
-    <br>
-    <h3>Buffer Between Videos</h3>
-    <label>
-        Buffer <input id="keyDelay" type="number" min="0" value="2"> seconds between videos
-    </label>
-    <br>
-    <h3>Scanning Mode</h3>
-    <label>
-        <input id="scanToggle" type="checkbox"> Scanning Mode
-    </label>
-    <br>
-    <label id="scanHotkeyContainer">
-        Shortcut <input id="scanHotkey" type="text" value="Ctrl+Shift+K">
-    </label>
-    <br>
-    <label id="scanDurationContainer">
-        Duration <input id="scanDuration" type="number" min="1" value="60"> seconds
-    </label>
-    <br>
-    <button id="saveSettings">Save</button>
+<body class="full-height">
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="icon.png" alt="QA Assist icon" width="32" height="32">
+                <span>QA Assist</span>
+            </div>
+            <nav class="nav-links">
+                <a class="nav-link" href="log.html">Event Log</a>
+                <a class="nav-link active" href="settings.html">Settings</a>
+                <a class="nav-link" href="site-overrides.html">Site Overrides</a>
+                <a class="nav-link" href="site-info.html">Site Info</a>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <div class="header-block">
+                <div>
+                    <h1>Settings</h1>
+                    <p>Configure automation, playback behaviour, scanning shortcuts, and validation preferences for QA Assist.</p>
+                </div>
+            </div>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Custom speed</h2>
+                    <button id="addRule" class="icon-button" type="button" aria-label="Add custom speed rule">+</button>
+                </div>
+                <p class="helper-text">Map event types to preferred playback speeds for consistent review tempo.</p>
+                <div id="rulesContainer" class="stack"></div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Smart skip</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="smartSkipToggle" type="checkbox"> <span>Enable Smart Skip</span>
+                </label>
+                <label id="skipContainer" class="inline-input">
+                    Skip when playback stalls after
+                    <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
+                </label>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Looping mode</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="loopToggle" type="checkbox"> <span>Looping Mode</span>
+                </label>
+                <div class="stack">
+                    <label id="loopResetContainer" class="inline-input">
+                        Seconds till "reset"
+                        <input id="loopReset" type="number" min="0" value="10">
+                    </label>
+                    <label id="loopHoldContainer" class="inline-input">
+                        Seconds held
+                        <input id="loopHold" type="number" min="0" value="5">
+                    </label>
+                    <label id="loopFollowContainer" class="toggle-row">
+                        <input id="loopFollow" type="checkbox"> <span>Follow up</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Simple auto skip</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="simpleSkipToggle" type="checkbox"> <span>Enable Simple Auto Skip</span>
+                </label>
+                <label id="simpleSkipDelayContainer" class="inline-input">
+                    Skip after
+                    <input id="simpleSkipDelay" type="number" min="0" value="5"> seconds
+                </label>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Validation filter</h2>
+                    <label class="toggle-row inline-toggle">
+                        <input id="validationFilterToggle" type="checkbox"> <span>Enable Filter</span>
+                    </label>
+                </div>
+                <p class="helper-text">Control which validation labels are auto-detected during call validation. When disabled, the original validation text is used.</p>
+                <div id="validationList" class="validation-list"></div>
+                <button id="addValidationTerm" type="button" class="secondary">Add validation label</button>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Buffer between videos</h2>
+                </div>
+                <label class="inline-input">
+                    Buffer
+                    <input id="keyDelay" type="number" min="0" value="2"> seconds between videos
+                </label>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Site overrides</h2>
+                    <button id="addSiteRule" class="icon-button" type="button" aria-label="Add site override">+</button>
+                </div>
+                <p class="helper-text">Create domain-specific automation profiles. Overrides apply automatically when the active tab matches the configured pattern.</p>
+                <div id="siteRulesContainer" class="stack"></div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <h2>Scanning mode</h2>
+                </div>
+                <label class="toggle-row">
+                    <input id="scanToggle" type="checkbox"> <span>Enable Scanning Mode</span>
+                </label>
+                <label id="scanHotkeyContainer" class="inline-input">
+                    Shortcut
+                    <input id="scanHotkey" type="text" value="Ctrl+Shift+K">
+                </label>
+                <label id="scanDurationContainer" class="inline-input">
+                    Duration
+                    <input id="scanDuration" type="number" min="1" value="60"> seconds
+                </label>
+            </section>
+
+            <p class="footer-note">Settings take effect immediately on the active tab when saved.</p>
+        </main>
+    </div>
+
+    <button class="primary floating-save" id="saveSettings" type="button">Save settings</button>
+    <div class="toast" id="settingsToast" role="status" aria-live="polite"></div>
+
+    <div class="modal" id="confirmModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+            <button class="modal-close" id="confirmClose" type="button" aria-label="Close">×</button>
+            <h3 id="confirmTitle">Confirm action</h3>
+            <p id="confirmMessage">Are you sure you want to continue?</p>
+            <div class="modal-actions">
+                <button type="button" id="confirmCancel" class="ghost">Cancel</button>
+                <button type="button" id="confirmAccept" class="danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <script src="settings.js"></script>
 </body>
 </html>
