@@ -411,15 +411,17 @@ document.addEventListener("DOMContentLoaded", () => {
             return "";
         }
 
-        const keyParts = [
-            log.eventId || "",
-            log.eventType || "",
-            log.truckNumber || "",
-            log.timestamp || "",
-            log.pageUrl || "",
-        ];
+        const eventId = String(log.eventId || "").trim();
+        const eventType = String(log.eventType || "").trim();
+        const timestamp = String(log.timestamp || "").trim();
 
-        return keyParts.map((part) => String(part || "").trim().toLowerCase()).join("|");
+        if (!eventId || !eventType || !timestamp) {
+            return "";
+        }
+
+        return [eventId, eventType, timestamp]
+            .map((part) => part.toLowerCase())
+            .join("|");
     }
 
     function ensureLogShape(log) {
@@ -430,7 +432,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const shaped = { ...log };
 
         shaped.callHistory = Array.isArray(shaped.callHistory) ? shaped.callHistory : [];
-        shaped.eventKey = shaped.eventKey || createEventKey(shaped);
+        shaped.eventKey = createEventKey(shaped);
         shaped.id = shaped.id || generateId();
         const detected =
             shaped.validationTypeRaw ||

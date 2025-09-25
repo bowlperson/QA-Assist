@@ -277,13 +277,23 @@ function collectEventDetails(video) {
                 eventType = primary;
             }
 
-            const secondary = rightSideElements
+            const secondaryValues = rightSideElements
                 .slice(1)
                 .map((node) => (node?.textContent || "").trim())
-                .find((text) => looksLikeValidationLabel(text));
+                .filter(Boolean);
 
-            if (secondary) {
-                validationType = secondary;
+            const labeledMatch = secondaryValues.find((text) => looksLikeValidationLabel(text));
+
+            if (labeledMatch) {
+                validationType = labeledMatch;
+            } else {
+                const normalizedEventType = (eventType || "").toLowerCase();
+                const fallbackMatch = secondaryValues.find(
+                    (text) => text && text.toLowerCase() !== normalizedEventType,
+                );
+                if (fallbackMatch) {
+                    validationType = fallbackMatch;
+                }
             }
         }
         if (timestampElement) {
@@ -328,15 +338,17 @@ function createEventKey(eventData) {
         return "";
     }
 
-    const keyParts = [
-        eventData.eventId || "",
-        eventData.eventType || "",
-        eventData.truckNumber || "",
-        eventData.timestamp || "",
-        eventData.pageUrl || "",
-    ];
+    const eventId = String(eventData.eventId || "").trim();
+    const eventType = String(eventData.eventType || "").trim();
+    const timestamp = String(eventData.timestamp || "").trim();
 
-    return keyParts.map((part) => String(part || "").trim().toLowerCase()).join("|");
+    if (!eventId || !eventType || !timestamp) {
+        return "";
+    }
+
+    return [eventId, eventType, timestamp]
+        .map((part) => part.toLowerCase())
+        .join("|");
 }
 
 function resolveSiteName(pageUrl) {
@@ -383,16 +395,15 @@ function registerEventLog(eventData) {
     }
 
     const eventKey = createEventKey(eventData);
-    if (!eventKey) {
-        return;
-    }
 
-    if (processedEventKeys.has(eventKey)) {
+    if (eventKey && processedEventKeys.has(eventKey)) {
         console.log("🔁 Duplicate event detected in-session. Skipping log entry.", eventData);
         return;
     }
 
-    processedEventKeys.add(eventKey);
+    if (eventKey) {
+        processedEventKeys.add(eventKey);
+    }
 
     resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
         const rawValidation = eventData.validationTypeRaw || eventData.validationType || "";
@@ -413,7 +424,9 @@ function registerEventLog(eventData) {
 
         chrome.storage.local.get("eventLogs", (data) => {
             const logs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
-            const alreadyExists = logs.some((log) => createEventKey(log) === eventKey);
+            const alreadyExists = eventKey
+                ? logs.some((log) => createEventKey(log) === eventKey)
+                : false;
 
             if (alreadyExists) {
                 console.log("🛑 Duplicate event detected in storage. Skipping log entry.", enrichedEvent);
