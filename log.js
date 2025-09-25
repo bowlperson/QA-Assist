@@ -34,9 +34,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const callSummaryRight = document.getElementById("callSummaryRight");
     const copyEventTimeButton = document.getElementById("copyEventTime");
     const copyCallTimeButton = document.getElementById("copyCallTime");
+    const bookmarkModal = document.getElementById("bookmarkModal");
+    const bookmarkCommentInput = document.getElementById("bookmarkComment");
+    const bookmarkSaveButton = document.getElementById("bookmarkSave");
+    const bookmarkRemoveButton = document.getElementById("bookmarkRemove");
+    const bookmarkCancelButton = document.getElementById("bookmarkCancel");
+    const closeBookmarkModalButton = document.getElementById("closeBookmarkModal");
+    const confirmModal = document.getElementById("confirmModal");
+    const confirmMessage = document.getElementById("confirmMessage");
+    const confirmAcceptButton = document.getElementById("confirmAccept");
+    const confirmCancelButton = document.getElementById("confirmCancel");
+    const closeConfirmButton = document.getElementById("closeConfirmModal");
+    const logToast = document.getElementById("logToast");
 
     let logs = [];
     let activeCallState = null;
+    let activeBookmarkId = null;
+    let confirmAction = null;
+    let toastTimeout = null;
 
     function normalizeValidationType(value) {
         const text = String(value || "").trim();
@@ -154,9 +169,110 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    function showToast(message) {
+        if (!logToast) {
+            return;
+        }
+
+        logToast.textContent = message;
+        logToast.classList.add("show");
+
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+        }
+
+        toastTimeout = setTimeout(() => {
+            logToast.classList.remove("show");
+        }, 2200);
+    }
+
     function setValidationButtonState(choice) {
         validationYesButton.classList.toggle("active", choice === "yes");
         validationNoButton.classList.toggle("active", choice === "no");
+    }
+
+    function resolveValidationValue(log) {
+        if (!log) {
+            return "";
+        }
+
+        const candidates = [
+            log.validationType,
+            log.finalValidation,
+            log.detectedValidation,
+            log.validationTypeDetected,
+            log.validationTypeRaw,
+        ];
+
+        for (const candidate of candidates) {
+            const text = (candidate || "").trim();
+            if (text) {
+                return text;
+            }
+        }
+
+        return "";
+    }
+
+    function closeBookmarkModal() {
+        if (!bookmarkModal) {
+            return;
+        }
+
+        bookmarkModal.classList.remove("show");
+        activeBookmarkId = null;
+        if (bookmarkCommentInput) {
+            bookmarkCommentInput.value = "";
+        }
+    }
+
+    function openBookmarkModal(log) {
+        if (!bookmarkModal || !log) {
+            return;
+        }
+
+        activeBookmarkId = log.id;
+        bookmarkModal.classList.add("show");
+
+        if (bookmarkCommentInput) {
+            bookmarkCommentInput.value = log.comment || "";
+            setTimeout(() => bookmarkCommentInput.focus(), 100);
+        }
+
+        if (bookmarkSaveButton) {
+            bookmarkSaveButton.textContent = log.bookmarked ? "Save Changes" : "Add Bookmark";
+        }
+
+        if (bookmarkRemoveButton) {
+            bookmarkRemoveButton.classList.toggle("hidden", !log.bookmarked);
+        }
+    }
+
+    function closeConfirmModal() {
+        if (!confirmModal) {
+            return;
+        }
+
+        confirmModal.classList.remove("show");
+        confirmAction = null;
+    }
+
+    function openConfirmModal(message, action) {
+        if (!confirmModal) {
+            if (typeof action === "function") {
+                action();
+            }
+            return;
+        }
+
+        if (confirmMessage) {
+            confirmMessage.textContent = message;
+        }
+        confirmModal.classList.add("show");
+        confirmAction = typeof action === "function" ? action : null;
+        if (confirmAcceptButton) {
+            setTimeout(() => confirmAcceptButton.focus(), 100);
+        }
     }
 
     function flashButtonFeedback(button, message, duration = 1200) {
@@ -206,15 +322,24 @@ document.addEventListener("DOMContentLoaded", () => {
         shaped.eventKey = shaped.eventKey || createEventKey(shaped);
         shaped.id = shaped.id || generateId();
         const detected =
-            shaped.detectedValidation ||
-            shaped.validationTypeDetected ||
             shaped.validationTypeRaw ||
-            shaped.validationTypeOriginal ||
+            shaped.validationTypeDetected ||
+            shaped.detectedValidation ||
+            shaped.validationType ||
             "";
-        shaped.detectedValidation = detected;
-        const normalizedValidation = normalizeValidationType(
-            shaped.validationType || detected || shaped.eventType || "",
-        );
+
+        const normalizedValidation = normalizeValidationType(shaped.validationType || detected);
+
+        if (!shaped.validationTypeRaw) {
+            shaped.validationTypeRaw = detected;
+        }
+        if (!shaped.validationTypeDetected) {
+            shaped.validationTypeDetected = detected;
+        }
+        if (!shaped.detectedValidation) {
+            shaped.detectedValidation = detected;
+        }
+
         shaped.validationType = normalizedValidation;
 
         return shaped;
@@ -275,18 +400,7 @@ document.addEventListener("DOMContentLoaded", () => {
         button.title = log.bookmarked ? "Remove bookmark" : "Bookmark event";
         button.textContent = log.bookmarked ? "★" : "☆";
 
-        button.addEventListener("click", () => {
-            if (log.bookmarked) {
-                log.bookmarked = false;
-                log.comment = "";
-            } else {
-                const comment = prompt("Add a comment for this bookmark:", log.comment || "");
-                log.bookmarked = true;
-                log.comment = comment || "";
-            }
-            saveLogs();
-            updateDisplays(logs);
-        });
+        button.addEventListener("click", () => openBookmarkModal(log));
 
         return button;
     }
@@ -314,6 +428,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const timestampCell = document.createElement("td");
         timestampCell.textContent = log.timestamp || "—";
 
+        const validationCell = document.createElement("td");
+        validationCell.textContent = resolveValidationValue(log) || "—";
+
         const siteCell = document.createElement("td");
         siteCell.textContent = (log.siteName || "—").trim();
 
@@ -332,6 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.appendChild(eventCell);
         row.appendChild(truckCell);
         row.appendChild(timestampCell);
+        row.appendChild(validationCell);
         row.appendChild(siteCell);
         row.appendChild(pageCell);
         row.appendChild(commentCell);
@@ -363,6 +481,10 @@ document.addEventListener("DOMContentLoaded", () => {
             ? `<a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>`
             : "—";
 
+        const validationCell = document.createElement("td");
+        const validationText = resolveValidationValue(log);
+        validationCell.textContent = validationText || "—";
+
         const callsCell = document.createElement("td");
         const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
         callsCell.innerHTML = attempts
@@ -381,6 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.appendChild(timestampCell);
         row.appendChild(siteCell);
         row.appendChild(pageCell);
+        row.appendChild(validationCell);
         row.appendChild(callsCell);
         row.appendChild(actionsCell);
 
@@ -402,6 +525,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 log.pageUrl,
                 log.siteName,
                 log.eventId,
+                resolveValidationValue(log),
             ]
                 .filter(Boolean)
                 .join(" ")
@@ -474,16 +598,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
         const attemptNumber = attempts + 1;
-        const detectedValidation =
-            (log.validationType && log.validationType.trim()) ||
-            (log.detectedValidation || log.validationTypeDetected || "").trim();
-        const defaultValidation = normalizeValidationType(detectedValidation || log.eventType || "");
+        const detectedValidation = resolveValidationValue(log);
+        const defaultValidation = normalizeValidationType(detectedValidation);
 
         activeCallState = {
             logId,
             attemptNumber,
             defaultValidation,
-            finalValidation: defaultValidation,
+            finalValidation: defaultValidation || detectedValidation || "",
             validationConfirmed: false,
             contactSelection: null,
             monitorName: "",
@@ -493,7 +615,7 @@ document.addEventListener("DOMContentLoaded", () => {
             latestAttemptIndex: null,
         };
 
-        validationDisplay.textContent = defaultValidation || "—";
+        validationDisplay.textContent = defaultValidation || detectedValidation || "—";
         validationDisplay.className = "tag";
         setValidationButtonState(null);
 
@@ -511,8 +633,8 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>${(log.siteName || "—").trim()}</span>
             <strong>Attempts Logged</strong>
             <span>${attempts}</span>
-            <strong>Detected Validation</strong>
-            <span>${detectedValidation || "—"}</span>
+            <strong>Validation Type</strong>
+            <span>${defaultValidation || detectedValidation || "—"}</span>
             <strong>Page</strong>
             <span>${log.pageUrl ? `<a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>` : "—"}</span>
         `;
@@ -552,9 +674,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const contactMade = attemptRecord ? attemptRecord.contactMade : false;
         const receptor = contactMade ? "Dispatch" : "";
-        const validationType = normalizeValidationType(
-            log.validationType || activeCallState?.finalValidation || "",
-        );
+        const baseValidation =
+            (attemptRecord && attemptRecord.validationType) ||
+            (activeCallState?.finalValidation && activeCallState.finalValidation.trim()) ||
+            (activeCallState?.defaultValidation && activeCallState.defaultValidation.trim()) ||
+            resolveValidationValue(log);
+
+        const validationType = normalizeValidationType(baseValidation) || baseValidation || "";
 
         const row = [
             dateStr,
@@ -612,12 +738,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const contactMade = activeCallState.contactSelection === "yes";
         const timestamp = new Date().toISOString();
 
-        const normalizedFinalValidation = normalizeValidationType(
-            activeCallState.finalValidation || activeCallState.defaultValidation || log.validationType || "",
-        );
-        activeCallState.finalValidation = normalizedFinalValidation;
-        log.validationType = normalizedFinalValidation;
-        log.detectedValidation = activeCallState.detectedValidation || log.detectedValidation || "";
+        const fallbackValidation =
+            (activeCallState.finalValidation && activeCallState.finalValidation.trim()) ||
+            (activeCallState.defaultValidation && activeCallState.defaultValidation.trim()) ||
+            resolveValidationValue(log);
+        const normalizedFinalValidation = normalizeValidationType(fallbackValidation);
+        const finalValidationValue = normalizedFinalValidation || fallbackValidation || "";
+
+        activeCallState.finalValidation = finalValidationValue;
+        log.validationType = finalValidationValue;
+        log.validationTypeRaw = finalValidationValue;
+        log.validationTypeDetected = finalValidationValue;
+        log.detectedValidation = finalValidationValue;
         log.monitorName = monitorName;
         log.callHistory = Array.isArray(log.callHistory) ? log.callHistory : [];
 
@@ -626,6 +758,7 @@ document.addEventListener("DOMContentLoaded", () => {
             timestamp,
             contactMade,
             receptor: contactMade ? "Dispatch" : "",
+            validationType: finalValidationValue,
         };
 
         log.callHistory.push(attemptRecord);
@@ -659,11 +792,12 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        if (confirm("Are you sure you want to clear all logs?")) {
+        openConfirmModal("Clear all saved events?", () => {
             logs = [];
             saveLogs();
             updateDisplays(logs);
-        }
+            showToast("Event log cleared");
+        });
     });
 
     exportCSVButton.addEventListener("click", () => {
@@ -689,19 +823,19 @@ document.addEventListener("DOMContentLoaded", () => {
             const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
             const lastAttempt = attempts ? log.callHistory[attempts - 1] : null;
 
-            return [
-                log.eventId || "",
-                log.eventType || "",
-                log.truckNumber || "",
-                log.timestamp || "",
-                (log.siteName || "").trim(),
-                log.pageUrl || "",
-                attempts,
-                log.validationType || log.eventType || "",
-                log.monitorName || "",
-                lastAttempt ? (lastAttempt.contactMade ? "Contacted" : "No Contact") : "",
-                lastAttempt && lastAttempt.tabRow ? lastAttempt.tabRow.replace(/\t/g, " ") : "",
-            ]
+                return [
+                    log.eventId || "",
+                    log.eventType || "",
+                    log.truckNumber || "",
+                    log.timestamp || "",
+                    (log.siteName || "").trim(),
+                    log.pageUrl || "",
+                    attempts,
+                    resolveValidationValue(log),
+                    log.monitorName || "",
+                    lastAttempt ? (lastAttempt.contactMade ? "Contacted" : "No Contact") : "",
+                    lastAttempt && lastAttempt.tabRow ? lastAttempt.tabRow.replace(/\t/g, " ") : "",
+                ]
                 .map((value) => `"${(value || "").replace(/"/g, '""')}"`)
                 .join(",");
         });
@@ -754,7 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
             validationInput.focus();
             return;
         }
-        const normalized = normalizeValidationType(updated);
+        const normalized = normalizeValidationType(updated) || updated;
         activeCallState.finalValidation = normalized;
         validationDisplay.textContent = normalized || "—";
         setValidationButtonState("yes");
@@ -828,8 +962,116 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    if (bookmarkSaveButton) {
+        bookmarkSaveButton.addEventListener("click", () => {
+            if (!activeBookmarkId) {
+                closeBookmarkModal();
+                return;
+            }
+
+            const log = getLogById(activeBookmarkId);
+            if (!log) {
+                closeBookmarkModal();
+                return;
+            }
+
+            const comment = bookmarkCommentInput ? bookmarkCommentInput.value.trim() : "";
+            const wasBookmarked = log.bookmarked;
+            log.bookmarked = true;
+            log.comment = comment;
+            saveLogs();
+            updateDisplays(logs);
+            showToast(wasBookmarked ? "Bookmark updated" : "Bookmark added");
+            closeBookmarkModal();
+        });
+    }
+
+    if (bookmarkRemoveButton) {
+        bookmarkRemoveButton.addEventListener("click", () => {
+            if (!activeBookmarkId) {
+                closeBookmarkModal();
+                return;
+            }
+
+            const log = getLogById(activeBookmarkId);
+            if (log) {
+                log.bookmarked = false;
+                log.comment = "";
+                saveLogs();
+                updateDisplays(logs);
+                showToast("Bookmark removed");
+            }
+
+            closeBookmarkModal();
+        });
+    }
+
+    if (bookmarkCancelButton) {
+        bookmarkCancelButton.addEventListener("click", () => {
+            closeBookmarkModal();
+        });
+    }
+
+    if (closeBookmarkModalButton) {
+        closeBookmarkModalButton.addEventListener("click", () => {
+            closeBookmarkModal();
+        });
+    }
+
+    if (bookmarkModal) {
+        bookmarkModal.addEventListener("click", (event) => {
+            if (event.target === bookmarkModal) {
+                closeBookmarkModal();
+            }
+        });
+    }
+
+    if (confirmAcceptButton) {
+        confirmAcceptButton.addEventListener("click", () => {
+            const action = confirmAction;
+            closeConfirmModal();
+            if (typeof action === "function") {
+                action();
+            }
+        });
+    }
+
+    if (confirmCancelButton) {
+        confirmCancelButton.addEventListener("click", () => {
+            closeConfirmModal();
+        });
+    }
+
+    if (closeConfirmButton) {
+        closeConfirmButton.addEventListener("click", () => {
+            closeConfirmModal();
+        });
+    }
+
+    if (confirmModal) {
+        confirmModal.addEventListener("click", (event) => {
+            if (event.target === confirmModal) {
+                closeConfirmModal();
+            }
+        });
+    }
+
     window.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && callModal.classList.contains("show")) {
+        if (event.key !== "Escape") {
+            return;
+        }
+
+        if (bookmarkModal && bookmarkModal.classList.contains("show")) {
+            closeBookmarkModal();
+            return;
+        }
+
+        if (confirmModal && confirmModal.classList.contains("show")) {
+            closeConfirmModal();
+            return;
+        }
+
+        if (callModal.classList.contains("show")) {
             closeCallModal();
         }
     });

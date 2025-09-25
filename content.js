@@ -44,6 +44,24 @@ function normalizeValidationType(value) {
     return text;
 }
 
+function looksLikeValidationLabel(text) {
+    if (!text) {
+        return false;
+    }
+
+    const cleaned = String(text).trim();
+    if (!cleaned) {
+        return false;
+    }
+
+    const normalized = normalizeValidationType(cleaned);
+    if (normalized && normalized !== cleaned) {
+        return true;
+    }
+
+    return /(blocked|critical|moderate|low|cell|false|non|lost)/i.test(cleaned);
+}
+
 function cleanValidationText(text) {
     if (!text) {
         return "";
@@ -137,9 +155,13 @@ function collectEventDetails(video) {
     } else if (selectedRow) {
         isLastCell = selectedRow === allRows[allRows.length - 1];
 
-        const eventTypeElement = selectedRow.querySelector(".gvEventListItemRight[style*='color']");
         const truckNumberElements = selectedRow.querySelectorAll(".gvEventListItemLeft");
         const timestampElement = selectedRow.querySelector(".gvEventListItemRight[style*='width: 90%']");
+        const rightSideElements = Array.from(selectedRow.querySelectorAll(".gvEventListItemRight"))
+            .filter((node) => {
+                const styleAttr = (node.getAttribute("style") || "").toLowerCase();
+                return styleAttr.includes("color");
+            });
 
         if (truckNumberElements.length > 0) {
             eventId = (truckNumberElements[0]?.textContent || "").trim();
@@ -147,14 +169,28 @@ function collectEventDetails(video) {
         if (truckNumberElements.length > 1) {
             truckNumber = (truckNumberElements[1]?.textContent || "").trim();
         }
-        if (eventTypeElement) {
-            eventType = eventTypeElement.textContent.trim();
+        if (rightSideElements.length) {
+            const primary = (rightSideElements[0]?.textContent || "").trim();
+            if (primary) {
+                eventType = primary;
+            }
+
+            const secondary = rightSideElements
+                .slice(1)
+                .map((node) => (node?.textContent || "").trim())
+                .find((text) => looksLikeValidationLabel(text));
+
+            if (secondary) {
+                validationType = secondary;
+            }
         }
         if (timestampElement) {
             timestamp = timestampElement.textContent.trim();
         }
 
-        validationType = extractValidationFromContainer(selectedRow);
+        if (!validationType) {
+            validationType = extractValidationFromContainer(selectedRow);
+        }
     } else {
         console.warn("⚠️ No selected row found for event logging.");
         return null;
@@ -168,6 +204,9 @@ function collectEventDetails(video) {
         validationType = extractValidationFromContainer(detailsPanel) || validationType;
     }
 
+    const cleanedValidation = (validationType || "").trim();
+    const normalizedValidation = normalizeValidationType(cleanedValidation);
+
     const eventData = {
         eventType,
         truckNumber,
@@ -175,7 +214,8 @@ function collectEventDetails(video) {
         pageUrl,
         isLastCell,
         eventId,
-        validationType,
+        validationType: normalizedValidation || cleanedValidation,
+        validationTypeRaw: cleanedValidation,
     };
 
     return eventData;
@@ -253,12 +293,13 @@ function registerEventLog(eventData) {
     processedEventKeys.add(eventKey);
 
     resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
-        const normalizedValidation = normalizeValidationType(eventData.validationType);
+        const rawValidation = eventData.validationTypeRaw || eventData.validationType || "";
+        const normalizedValidation = normalizeValidationType(rawValidation);
         const enrichedEvent = {
             ...eventData,
-            validationTypeRaw: eventData.validationType || "",
-            validationTypeDetected: eventData.validationType || "",
-            detectedValidation: eventData.validationType || "",
+            validationTypeRaw: rawValidation,
+            validationTypeDetected: rawValidation,
+            detectedValidation: rawValidation,
             validationType: normalizedValidation,
             siteName,
             siteMatchValue,

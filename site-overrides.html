@@ -331,6 +331,10 @@
             box-shadow: 0 48px 80px rgba(0, 0, 0, 0.45);
         }
 
+        .modal-card.compact {
+            width: min(420px, 100%);
+        }
+
         .modal-card h3 {
             margin: 0 0 18px;
         }
@@ -533,6 +537,17 @@
             <div class="modal-footer">
                 <button class="ghost" id="cancelEdit">Cancel</button>
                 <button class="primary" id="saveEdit">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="overrideConfirmModal" aria-hidden="true">
+        <div class="modal-card compact">
+            <h3>Delete Override</h3>
+            <p id="overrideConfirmMessage" style="color: var(--muted); margin-bottom: 18px;">Are you sure you want to remove this override?</p>
+            <div class="modal-footer">
+                <button class="ghost" id="overrideConfirmCancel">Cancel</button>
+                <button class="primary" id="overrideConfirmAccept">Delete</button>
             </div>
         </div>
     </div>

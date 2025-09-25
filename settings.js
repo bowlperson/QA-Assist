@@ -33,6 +33,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const scanDurationInput = document.getElementById('scanDuration');
     const scanHotkeyContainer = document.getElementById('scanHotkeyContainer');
     const scanDurationContainer = document.getElementById('scanDurationContainer');
+    const toast = document.getElementById('settingsToast');
+
+    let toastTimeout = null;
+
+    function showToast(message) {
+        if (!toast) {
+            return;
+        }
+
+        toast.textContent = message;
+        toast.classList.add('show');
+
+        if (toastTimeout) {
+            clearTimeout(toastTimeout);
+        }
+
+        toastTimeout = setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2200);
+    }
 
     function createSiteRuleRow(rule) {
         const div = document.createElement('div');
@@ -377,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 }
             });
-            alert('Settings saved');
+            showToast('Settings saved');
         });
     });
 });

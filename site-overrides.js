@@ -29,10 +29,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const cancelEditButton = document.getElementById("cancelEdit");
 
     const toast = document.getElementById("overrideToast");
+    const confirmModal = document.getElementById("overrideConfirmModal");
+    const confirmMessage = document.getElementById("overrideConfirmMessage");
+    const confirmAcceptButton = document.getElementById("overrideConfirmAccept");
+    const confirmCancelButton = document.getElementById("overrideConfirmCancel");
 
     let overrides = [];
     let editingId = null;
     let toastTimeout = null;
+    let pendingDeleteId = null;
 
     function generateId() {
         if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -172,18 +177,38 @@ document.addEventListener("DOMContentLoaded", () => {
             });
     }
 
+    function closeConfirmModal() {
+        if (!confirmModal) {
+            return;
+        }
+        confirmModal.classList.remove("show");
+        pendingDeleteId = null;
+    }
+
+    function openConfirmModal(message) {
+        if (!confirmModal) {
+            return;
+        }
+
+        if (confirmMessage) {
+            confirmMessage.textContent = message;
+        }
+
+        confirmModal.classList.add("show");
+        setTimeout(() => confirmAcceptButton && confirmAcceptButton.focus(), 100);
+    }
+
     function deleteOverride(id) {
-        const index = overrides.findIndex((override) => override.id === id);
-        if (index === -1) {
+        const override = overrides.find((entry) => entry.id === id);
+        if (!override) {
             return;
         }
-        if (!confirm("Delete this override?")) {
-            return;
-        }
-        overrides.splice(index, 1);
-        saveOverrides();
-        renderOverrides();
-        showToast("Override removed");
+
+        pendingDeleteId = id;
+        const message = override.name
+            ? `Remove override "${override.name}"?`
+            : "Remove this override?";
+        openConfirmModal(message);
     }
 
     function collectFormData(inputs) {
@@ -338,8 +363,56 @@ document.addEventListener("DOMContentLoaded", () => {
     cancelEditButton.addEventListener("click", closeEditModal);
     saveEditButton.addEventListener("click", saveEdit);
 
+    if (confirmAcceptButton) {
+        confirmAcceptButton.addEventListener("click", () => {
+            if (!pendingDeleteId) {
+                closeConfirmModal();
+                return;
+            }
+
+            const index = overrides.findIndex((override) => override.id === pendingDeleteId);
+            if (index !== -1) {
+                overrides.splice(index, 1);
+                saveOverrides();
+                renderOverrides();
+                showToast("Override removed");
+            }
+
+            closeConfirmModal();
+        });
+    }
+
+    if (confirmCancelButton) {
+        confirmCancelButton.addEventListener("click", () => {
+            closeConfirmModal();
+        });
+    }
+
     editModal.addEventListener("click", (event) => {
         if (event.target === editModal) {
+            closeEditModal();
+        }
+    });
+
+    if (confirmModal) {
+        confirmModal.addEventListener("click", (event) => {
+            if (event.target === confirmModal) {
+                closeConfirmModal();
+            }
+        });
+    }
+
+    window.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") {
+            return;
+        }
+
+        if (confirmModal && confirmModal.classList.contains("show")) {
+            closeConfirmModal();
+            return;
+        }
+
+        if (editModal.classList.contains("show")) {
             closeEditModal();
         }
     });

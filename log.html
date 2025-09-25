@@ -204,6 +204,29 @@
             transform: scale(1.08);
         }
 
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(120%);
+            background: rgba(12, 18, 30, 0.94);
+            color: var(--text);
+            padding: 12px 20px;
+            border-radius: 999px;
+            border: 1px solid rgba(76, 141, 255, 0.4);
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.4);
+            opacity: 0;
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            pointer-events: none;
+            font-weight: 600;
+            z-index: 900;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
         .badge {
             display: inline-flex;
             align-items: center;
@@ -247,6 +270,10 @@
             position: relative;
         }
 
+        .modal-card.compact {
+            width: min(420px, 100%);
+        }
+
         .modal-card h3 {
             margin: 0 0 6px;
             font-size: 22px;
@@ -255,6 +282,19 @@
         .modal-card .subtitle {
             color: var(--muted);
             margin-bottom: 20px;
+        }
+
+        .modal-card textarea {
+            width: 100%;
+            min-height: 110px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(12, 16, 26, 0.85);
+            color: var(--text);
+            padding: 12px 14px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
         }
 
         .close-modal {
@@ -365,6 +405,19 @@
             cursor: pointer;
         }
 
+        .modal-footer.bookmark-actions {
+            align-items: center;
+        }
+
+        .modal-footer.bookmark-actions .button-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-footer.bookmark-actions button {
+            flex: initial;
+        }
+
         .modal-footer button.primary {
             background: linear-gradient(135deg, var(--accent), #6aa2ff);
             border-color: transparent;
@@ -453,6 +506,7 @@
                     <th>Event</th>
                     <th>Truck</th>
                     <th>Timestamp</th>
+                    <th>Validation</th>
                     <th>Site</th>
                     <th>Page</th>
                     <th>Comment</th>
@@ -469,7 +523,7 @@
             <span id="eventCount" class="badge">0 items</span>
         </div>
         <div class="controls">
-            <input type="text" id="filterInput" placeholder="Search by event, truck, timestamp, site, or URL...">
+            <input type="text" id="filterInput" placeholder="Search by event, validation, truck, timestamp, site, or URL...">
             <button id="exportCSV" class="export">Export CSV</button>
             <button id="clearLogs">Clear Logs</button>
         </div>
@@ -482,6 +536,7 @@
                     <th>Timestamp</th>
                     <th>Site</th>
                     <th>Page URL</th>
+                    <th>Validation Type</th>
                     <th>Calls</th>
                     <th>Actions</th>
                 </tr>
@@ -553,6 +608,36 @@
             </div>
         </div>
     </div>
+
+    <div class="modal" id="bookmarkModal" aria-hidden="true">
+        <div class="modal-card compact">
+            <button class="close-modal" id="closeBookmarkModal" title="Close">×</button>
+            <h3>Bookmark Event</h3>
+            <p class="subtitle">Add an optional note to keep track of this event.</p>
+            <textarea id="bookmarkComment" placeholder="Add a quick note (optional)"></textarea>
+            <div class="modal-footer bookmark-actions">
+                <button type="button" id="bookmarkRemove" class="danger hidden">Remove Bookmark</button>
+                <div class="button-group">
+                    <button type="button" id="bookmarkCancel">Cancel</button>
+                    <button type="button" id="bookmarkSave" class="primary">Add Bookmark</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="confirmModal" aria-hidden="true">
+        <div class="modal-card compact">
+            <button class="close-modal" id="closeConfirmModal" title="Close">×</button>
+            <h3>Confirm Action</h3>
+            <p class="subtitle" id="confirmMessage">Are you sure?</p>
+            <div class="modal-footer">
+                <button type="button" id="confirmCancel">Cancel</button>
+                <button type="button" id="confirmAccept" class="primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="logToast" role="status" aria-live="polite"></div>
 
     <script src="log.js"></script>
 </body>
