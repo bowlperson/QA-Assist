@@ -326,8 +326,10 @@ function collectEventDetails(video) {
         pageUrl,
         isLastCell,
         eventId,
-        validationType: normalizedValidation || cleanedValidation,
+        validationType: cleanedValidation,
         validationTypeRaw: cleanedValidation,
+        validationTypeDetected: cleanedValidation,
+        callValidationType: normalizedValidation || cleanedValidation,
     };
 
     return eventData;
@@ -407,13 +409,15 @@ function registerEventLog(eventData) {
 
     resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
         const rawValidation = eventData.validationTypeRaw || eventData.validationType || "";
-        const normalizedValidation = normalizeValidationType(rawValidation);
+        const callValidation = eventData.callValidationType || rawValidation;
+        const normalizedValidation = normalizeValidationType(callValidation || rawValidation);
         const enrichedEvent = {
             ...eventData,
             validationTypeRaw: rawValidation,
             validationTypeDetected: rawValidation,
             detectedValidation: rawValidation,
-            validationType: normalizedValidation,
+            validationType: rawValidation,
+            callValidationType: normalizedValidation || callValidation || rawValidation,
             siteName,
             siteMatchValue,
             createdAt: new Date().toISOString(),

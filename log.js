@@ -302,17 +302,17 @@ document.addEventListener("DOMContentLoaded", () => {
         validationNoButton.classList.toggle("active", choice === "no");
     }
 
-    function resolveValidationValue(log) {
+    function getRawValidation(log) {
         if (!log) {
             return "";
         }
 
         const candidates = [
-            log.validationType,
-            log.finalValidation,
-            log.detectedValidation,
-            log.validationTypeDetected,
             log.validationTypeRaw,
+            log.validationType,
+            log.validationTypeDetected,
+            log.detectedValidation,
+            log.finalValidation,
         ];
 
         for (const candidate of candidates) {
@@ -323,6 +323,28 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         return "";
+    }
+
+    function getLastCallHistoryValidation(log) {
+        if (!log || !Array.isArray(log.callHistory) || !log.callHistory.length) {
+            return "";
+        }
+
+        const lastAttempt = log.callHistory[log.callHistory.length - 1];
+        return (lastAttempt?.validationType || "").trim();
+    }
+
+    function getCallValidation(log) {
+        if (!log) {
+            return "";
+        }
+
+        const stored = (log.callValidationType || "").trim();
+        const historyValue = getLastCallHistoryValidation(log);
+        const raw = getRawValidation(log);
+        const base = stored || historyValue || raw;
+
+        return normalizeValidationType(base || raw);
     }
 
     function closeBookmarkModal() {
@@ -434,26 +456,38 @@ document.addEventListener("DOMContentLoaded", () => {
         shaped.callHistory = Array.isArray(shaped.callHistory) ? shaped.callHistory : [];
         shaped.eventKey = createEventKey(shaped);
         shaped.id = shaped.id || generateId();
-        const detected =
-            shaped.validationTypeRaw ||
-            shaped.validationTypeDetected ||
-            shaped.detectedValidation ||
-            shaped.validationType ||
-            "";
 
-        const normalizedValidation = normalizeValidationType(shaped.validationType || detected);
+        const rawCandidates = [
+            shaped.validationTypeRaw,
+            shaped.validationTypeDetected,
+            shaped.detectedValidation,
+            shaped.validationType,
+        ];
 
-        if (!shaped.validationTypeRaw) {
-            shaped.validationTypeRaw = detected;
-        }
-        if (!shaped.validationTypeDetected) {
-            shaped.validationTypeDetected = detected;
-        }
-        if (!shaped.detectedValidation) {
-            shaped.detectedValidation = detected;
+        let rawValidation = "";
+        for (const candidate of rawCandidates) {
+            const text = (candidate || "").trim();
+            if (text) {
+                rawValidation = text;
+                break;
+            }
         }
 
-        shaped.validationType = normalizedValidation;
+        shaped.validationTypeRaw = rawValidation;
+        shaped.validationTypeDetected = shaped.validationTypeDetected || rawValidation;
+        shaped.detectedValidation = shaped.detectedValidation || rawValidation;
+        shaped.validationType = rawValidation;
+
+        const lastHistoryValue = shaped.callHistory.length
+            ? (shaped.callHistory[shaped.callHistory.length - 1]?.validationType || "").trim()
+            : "";
+        const storedCallValue = (shaped.callValidationType || "").trim();
+        const previousFinal = (shaped.finalValidation || "").trim();
+        const callBase = storedCallValue || previousFinal || lastHistoryValue || rawValidation;
+        const normalizedCall = normalizeValidationType(callBase || rawValidation);
+
+        shaped.callValidationType = normalizedCall || callBase || rawValidation;
+        shaped.finalValidation = shaped.callValidationType;
 
         return shaped;
     }
@@ -542,7 +576,7 @@ document.addEventListener("DOMContentLoaded", () => {
         timestampCell.textContent = log.timestamp || "—";
 
         const validationCell = document.createElement("td");
-        validationCell.textContent = resolveValidationValue(log) || "—";
+        validationCell.textContent = getRawValidation(log) || "—";
 
         const siteCell = document.createElement("td");
         siteCell.textContent = (log.siteName || "—").trim();
@@ -595,7 +629,7 @@ document.addEventListener("DOMContentLoaded", () => {
             : "—";
 
         const validationCell = document.createElement("td");
-        const validationText = resolveValidationValue(log);
+        const validationText = getRawValidation(log);
         validationCell.textContent = validationText || "—";
 
         const callsCell = document.createElement("td");
@@ -638,7 +672,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 log.pageUrl,
                 log.siteName,
                 log.eventId,
-                resolveValidationValue(log),
+                getRawValidation(log),
             ]
                 .filter(Boolean)
                 .join(" ")
@@ -711,8 +745,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
         const attemptNumber = attempts + 1;
-        const detectedValidation = resolveValidationValue(log);
-        const defaultValidation = normalizeValidationType(detectedValidation);
+        const detectedValidation = getRawValidation(log);
+        const defaultValidation = getCallValidation(log);
 
         activeCallState = {
             logId,
@@ -723,6 +757,7 @@ document.addEventListener("DOMContentLoaded", () => {
             contactSelection: null,
             monitorName: "",
             detectedValidation,
+            siteValidation: detectedValidation,
             eventTimeParts: null,
             callTimeParts: null,
             latestAttemptIndex: null,
@@ -791,9 +826,14 @@ document.addEventListener("DOMContentLoaded", () => {
             (attemptRecord && attemptRecord.validationType) ||
             (activeCallState?.finalValidation && activeCallState.finalValidation.trim()) ||
             (activeCallState?.defaultValidation && activeCallState.defaultValidation.trim()) ||
-            resolveValidationValue(log);
+            getCallValidation(log);
 
-        const validationType = normalizeValidationType(baseValidation) || baseValidation || "";
+        const rawFallback = getRawValidation(log);
+        const validationType =
+            normalizeValidationType(baseValidation || rawFallback) ||
+            baseValidation ||
+            rawFallback ||
+            "";
 
         const row = [
             dateStr,
@@ -854,15 +894,25 @@ document.addEventListener("DOMContentLoaded", () => {
         const fallbackValidation =
             (activeCallState.finalValidation && activeCallState.finalValidation.trim()) ||
             (activeCallState.defaultValidation && activeCallState.defaultValidation.trim()) ||
-            resolveValidationValue(log);
+            getCallValidation(log) ||
+            getRawValidation(log);
         const normalizedFinalValidation = normalizeValidationType(fallbackValidation);
         const finalValidationValue = normalizedFinalValidation || fallbackValidation || "";
 
         activeCallState.finalValidation = finalValidationValue;
-        log.validationType = finalValidationValue;
-        log.validationTypeRaw = finalValidationValue;
-        log.validationTypeDetected = finalValidationValue;
-        log.detectedValidation = finalValidationValue;
+        log.callValidationType = finalValidationValue;
+
+        const siteValidation = activeCallState.siteValidation || getRawValidation(log);
+        if (!log.validationTypeRaw) {
+            log.validationTypeRaw = siteValidation || finalValidationValue;
+        }
+        if (!log.validationTypeDetected) {
+            log.validationTypeDetected = log.validationTypeRaw;
+        }
+        if (!log.detectedValidation) {
+            log.detectedValidation = log.validationTypeRaw;
+        }
+        log.validationType = log.validationTypeRaw;
         log.monitorName = monitorName;
         log.callHistory = Array.isArray(log.callHistory) ? log.callHistory : [];
 
@@ -944,7 +994,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     (log.siteName || "").trim(),
                     log.pageUrl || "",
                     attempts,
-                    resolveValidationValue(log),
+                    getRawValidation(log),
                     log.monitorName || "",
                     lastAttempt ? (lastAttempt.contactMade ? "Contacted" : "No Contact") : "",
                     lastAttempt && lastAttempt.tabRow ? lastAttempt.tabRow.replace(/\t/g, " ") : "",
@@ -970,9 +1020,10 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!activeCallState) {
             return;
         }
-        const normalized = normalizeValidationType(activeCallState.defaultValidation);
-        activeCallState.finalValidation = normalized;
-        validationDisplay.textContent = normalized || "—";
+        const baseValue = activeCallState.defaultValidation || activeCallState.siteValidation || "";
+        const normalized = normalizeValidationType(baseValue);
+        activeCallState.finalValidation = normalized || baseValue || "";
+        validationDisplay.textContent = activeCallState.finalValidation || "—";
         setValidationButtonState("yes");
         setValidationConfirmed(true);
         validationEditGroup.classList.add("hidden");
@@ -987,8 +1038,9 @@ document.addEventListener("DOMContentLoaded", () => {
         validationEditGroup.classList.remove("hidden");
         validationInput.value =
             activeCallState.finalValidation ||
+            activeCallState.defaultValidation ||
             activeCallState.detectedValidation ||
-            activeCallState.defaultValidation;
+            "";
         validationInput.focus();
     });
 
@@ -1012,8 +1064,9 @@ document.addEventListener("DOMContentLoaded", () => {
     cancelValidationEditButton.addEventListener("click", () => {
         validationEditGroup.classList.add("hidden");
         if (activeCallState) {
-            activeCallState.finalValidation = activeCallState.defaultValidation;
-            validationDisplay.textContent = activeCallState.defaultValidation || "—";
+            const resetValue = activeCallState.defaultValidation || activeCallState.siteValidation || "";
+            activeCallState.finalValidation = normalizeValidationType(resetValue) || resetValue || "";
+            validationDisplay.textContent = activeCallState.finalValidation || "—";
             setValidationButtonState(null);
             setValidationConfirmed(false);
         }
