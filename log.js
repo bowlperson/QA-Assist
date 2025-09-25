@@ -565,26 +565,45 @@ document.addEventListener("DOMContentLoaded", () => {
         const row = document.createElement("tr");
 
         const eventCell = document.createElement("td");
-        eventCell.innerHTML = `<div>${log.eventType || "—"}</div><div class="badge" style="margin-top:6px;">${
-            log.eventId || "ID unavailable"
-        }</div>`;
+        const eventId = log.eventId || "—";
+        const eventType = log.eventType || "—";
+        const eventIdDisplay = document.createElement("div");
+        eventIdDisplay.className = "event-id-cell";
+        eventIdDisplay.textContent = eventId;
+        const eventTypeDisplay = document.createElement("div");
+        eventTypeDisplay.className = "event-meta";
+        eventTypeDisplay.textContent = eventType;
+        eventCell.appendChild(eventIdDisplay);
+        eventCell.appendChild(eventTypeDisplay);
 
-        const truckCell = document.createElement("td");
-        truckCell.textContent = log.truckNumber || "—";
-
-        const timestampCell = document.createElement("td");
-        timestampCell.textContent = log.timestamp || "—";
+        if (log.truckNumber) {
+            const truckDisplay = document.createElement("div");
+            truckDisplay.className = "event-meta";
+            truckDisplay.textContent = `Truck ${log.truckNumber}`;
+            eventCell.appendChild(truckDisplay);
+        }
 
         const validationCell = document.createElement("td");
         validationCell.textContent = getRawValidation(log) || "—";
 
-        const siteCell = document.createElement("td");
-        siteCell.textContent = (log.siteName || "—").trim();
+        const timestampCell = document.createElement("td");
+        timestampCell.textContent = log.timestamp || "—";
 
-        const pageCell = document.createElement("td");
-        pageCell.innerHTML = log.pageUrl
-            ? `<a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>`
-            : "—";
+        const siteCell = document.createElement("td");
+        const siteNameDisplay = document.createElement("div");
+        const siteName = (log.siteName || "").trim();
+        siteNameDisplay.textContent = siteName || "—";
+        siteCell.appendChild(siteNameDisplay);
+
+        if (log.pageUrl) {
+            const pageLink = document.createElement("a");
+            pageLink.href = log.pageUrl;
+            pageLink.target = "_blank";
+            pageLink.rel = "noopener noreferrer";
+            pageLink.textContent = log.pageUrl;
+            pageLink.className = "event-meta-link";
+            siteCell.appendChild(pageLink);
+        }
 
         const commentCell = document.createElement("td");
         commentCell.textContent = log.comment || "";
@@ -594,11 +613,9 @@ document.addEventListener("DOMContentLoaded", () => {
         actionsCell.appendChild(createCallButton(log));
 
         row.appendChild(eventCell);
-        row.appendChild(truckCell);
-        row.appendChild(timestampCell);
         row.appendChild(validationCell);
+        row.appendChild(timestampCell);
         row.appendChild(siteCell);
-        row.appendChild(pageCell);
         row.appendChild(commentCell);
         row.appendChild(actionsCell);
 
@@ -609,10 +626,15 @@ document.addEventListener("DOMContentLoaded", () => {
         const row = document.createElement("tr");
 
         const eventIdCell = document.createElement("td");
-        eventIdCell.textContent = log.eventId || "—";
+        const eventIdValue = document.createElement("div");
+        eventIdValue.className = "event-id-cell";
+        eventIdValue.textContent = log.eventId || "—";
+        eventIdCell.appendChild(eventIdValue);
 
-        const eventTypeCell = document.createElement("td");
-        eventTypeCell.textContent = log.eventType || "—";
+        const eventTypeDisplay = document.createElement("div");
+        eventTypeDisplay.className = "event-meta";
+        eventTypeDisplay.textContent = log.eventType || "—";
+        eventIdCell.appendChild(eventTypeDisplay);
 
         const truckCell = document.createElement("td");
         truckCell.textContent = log.truckNumber || "—";
@@ -621,22 +643,24 @@ document.addEventListener("DOMContentLoaded", () => {
         timestampCell.textContent = log.timestamp || "—";
 
         const siteCell = document.createElement("td");
-        siteCell.textContent = (log.siteName || "—").trim();
+        const siteNameDisplay = document.createElement("div");
+        const siteName = (log.siteName || "").trim();
+        siteNameDisplay.textContent = siteName || "—";
+        siteCell.appendChild(siteNameDisplay);
 
-        const pageCell = document.createElement("td");
-        pageCell.innerHTML = log.pageUrl
-            ? `<a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>`
-            : "—";
+        if (log.pageUrl) {
+            const pageLink = document.createElement("a");
+            pageLink.href = log.pageUrl;
+            pageLink.target = "_blank";
+            pageLink.rel = "noopener noreferrer";
+            pageLink.textContent = log.pageUrl;
+            pageLink.className = "event-meta-link";
+            siteCell.appendChild(pageLink);
+        }
 
         const validationCell = document.createElement("td");
         const validationText = getRawValidation(log);
         validationCell.textContent = validationText || "—";
-
-        const callsCell = document.createElement("td");
-        const attempts = Array.isArray(log.callHistory) ? log.callHistory.length : 0;
-        callsCell.innerHTML = attempts
-            ? `<span class="badge success">${attempts} Call${attempts > 1 ? "s" : ""}</span>`
-            : "—";
 
         const actionsCell = document.createElement("td");
         actionsCell.style.display = "flex";
@@ -645,13 +669,10 @@ document.addEventListener("DOMContentLoaded", () => {
         actionsCell.appendChild(createCallButton(log));
 
         row.appendChild(eventIdCell);
-        row.appendChild(eventTypeCell);
-        row.appendChild(truckCell);
+        row.appendChild(validationCell);
         row.appendChild(timestampCell);
         row.appendChild(siteCell);
-        row.appendChild(pageCell);
-        row.appendChild(validationCell);
-        row.appendChild(callsCell);
+        row.appendChild(truckCell);
         row.appendChild(actionsCell);
 
         return row;
@@ -975,7 +996,6 @@ document.addEventListener("DOMContentLoaded", () => {
             "Timestamp",
             "Site",
             "Page URL",
-            "Calls",
             "Validation Type",
             "Monitor Name",
             "Last Contact",
@@ -993,7 +1013,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     log.timestamp || "",
                     (log.siteName || "").trim(),
                     log.pageUrl || "",
-                    attempts,
                     getRawValidation(log),
                     log.monitorName || "",
                     lastAttempt ? (lastAttempt.contactMade ? "Contacted" : "No Contact") : "",
