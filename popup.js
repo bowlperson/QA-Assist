@@ -21,6 +21,69 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentEnabledState = false;
     let cachedOverrides = [];
 
+    function normalizeStorageKeys(keys) {
+        if (Array.isArray(keys)) {
+            return keys;
+        }
+
+        if (typeof keys === "string") {
+            return [keys];
+        }
+
+        if (keys && typeof keys === "object") {
+            return Object.keys(keys);
+        }
+
+        return [];
+    }
+
+    function getWithFallback(keys, callback) {
+        chrome.storage.sync.get(keys, (data) => {
+            const syncError = chrome.runtime.lastError;
+            const normalizedKeys = normalizeStorageKeys(keys);
+            const valuesMissing =
+                normalizedKeys.length > 0 &&
+                normalizedKeys.every((key) => data[key] === undefined);
+
+            if (!syncError && !valuesMissing) {
+                callback(data, "sync");
+                return;
+            }
+
+            if (syncError) {
+                console.warn("Sync storage unavailable. Falling back to local storage.", syncError);
+            } else if (valuesMissing) {
+                console.warn("Sync storage returned no values. Falling back to local storage for", normalizedKeys);
+            }
+
+            chrome.storage.local.get(keys, (localData) => {
+                if (chrome.runtime.lastError) {
+                    console.warn("Local storage retrieval failed", chrome.runtime.lastError);
+                }
+                callback(localData, "local");
+            });
+        });
+    }
+
+    function setWithFallback(items, callback) {
+        chrome.storage.sync.set(items, () => {
+            const syncError = chrome.runtime.lastError;
+            if (!syncError) {
+                callback?.("sync");
+                return;
+            }
+
+            console.warn("Sync storage unavailable. Persisting to local storage instead.", syncError);
+
+            chrome.storage.local.set(items, () => {
+                if (chrome.runtime.lastError) {
+                    console.warn("Local storage persistence failed", chrome.runtime.lastError);
+                }
+                callback?.("local");
+            });
+        });
+    }
+
     function findOverrideForUrl(url, overrides) {
         if (!url || !Array.isArray(overrides)) {
             return null;
@@ -104,7 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
         toggle.checked = isEnabled;
         updateStatusVisuals(isEnabled);
 
-        chrome.storage.sync.set({ enabled: isEnabled }, () => {
+        setWithFallback({ enabled: isEnabled }, () => {
             sendMessageToActiveTab({ enabled: isEnabled });
         });
     }
@@ -117,7 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
         scanConfirmModal.classList.remove("show");
     }
 
-    chrome.storage.sync.get(
+    getWithFallback(
         ["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "monitorName", "siteOverrides"],
         (data) => {
             currentEnabledState = data.enabled ?? false;
@@ -158,35 +221,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
     autoPressNextToggle.addEventListener("change", () => {
         const isEnabled = autoPressNextToggle.checked;
-        chrome.storage.sync.set({ autoPressNext: isEnabled }, () => {
+        setWithFallback({ autoPressNext: isEnabled }, () => {
             sendMessageToActiveTab({ autoPressNext: isEnabled });
         });
     });
 
     removeEyeTrackerToggle.addEventListener("change", () => {
         const isEnabled = removeEyeTrackerToggle.checked;
-        chrome.storage.sync.set({ removeEyeTracker: isEnabled }, () => {
+        setWithFallback({ removeEyeTracker: isEnabled }, () => {
             sendMessageToActiveTab({ removeEyeTracker: isEnabled });
         });
     });
 
     speedSelect.addEventListener("change", () => {
         const selectedSpeed = speedSelect.value;
-        chrome.storage.sync.set({ playbackSpeed: selectedSpeed }, () => {
+        setWithFallback({ playbackSpeed: selectedSpeed }, () => {
             sendMessageToActiveTab({ playbackSpeed: selectedSpeed });
         });
     });
 
     keySelect.addEventListener("change", () => {
         const selectedKey = keySelect.value;
-        chrome.storage.sync.set({ pressKey: selectedKey }, () => {
+        setWithFallback({ pressKey: selectedKey }, () => {
             sendMessageToActiveTab({ pressKey: selectedKey });
         });
     });
 
     monitorNameInput.addEventListener("blur", () => {
         const name = monitorNameInput.value.trim();
-        chrome.storage.sync.set({ monitorName: name });
+        setWithFallback({ monitorName: name });
     });
 
     monitorNameInput.addEventListener("keydown", (event) => {

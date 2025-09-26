@@ -7,6 +7,53 @@ let activeOverride = null;
 const processedEventKeys = new Set();
 let mutationObserver = null;
 
+function normalizeStorageKeys(keys) {
+    if (Array.isArray(keys)) {
+        return keys;
+    }
+
+    if (typeof keys === "string") {
+        return [keys];
+    }
+
+    if (keys && typeof keys === "object") {
+        return Object.keys(keys);
+    }
+
+    return [];
+}
+
+function getFromStorage(keys, callback) {
+    chrome.storage.sync.get(keys, (data) => {
+        const syncError = chrome.runtime.lastError;
+        const normalizedKeys = normalizeStorageKeys(keys);
+        const valuesMissing =
+            normalizedKeys.length > 0 &&
+            normalizedKeys.every((key) => data[key] === undefined);
+
+        if (!syncError && !valuesMissing) {
+            callback(data, "sync");
+            return;
+        }
+
+        if (syncError) {
+            console.warn("Sync storage unavailable in content script. Falling back to local storage.", syncError);
+        } else if (valuesMissing) {
+            console.warn(
+                "Sync storage returned no values in content script. Falling back to local storage for",
+                normalizedKeys,
+            );
+        }
+
+        chrome.storage.local.get(keys, (localData) => {
+            if (chrome.runtime.lastError) {
+                console.warn("Local storage retrieval failed in content script", chrome.runtime.lastError);
+            }
+            callback(localData, "local");
+        });
+    });
+}
+
 const DEFAULT_VALIDATION_VOCABULARY = [
     { label: "Blocked", keywords: ["blocked"] },
     { label: "Critical", keywords: ["critical"] },
@@ -355,7 +402,7 @@ function createEventKey(eventData) {
 
 function resolveSiteName(pageUrl) {
     return new Promise((resolve) => {
-        chrome.storage.sync.get("siteInfo", (data) => {
+        getFromStorage("siteInfo", (data) => {
             const siteInfo = Array.isArray(data.siteInfo) ? data.siteInfo : [];
 
             let siteName = "";
@@ -523,7 +570,7 @@ function monitorVideos() {
 
                 pressKeyEvent("ArrowDown");
 
-                chrome.storage.sync.get("autoPressNext", (data) => {
+                getFromStorage("autoPressNext", (data) => {
                     const shouldAutoPress = data.autoPressNext ?? autoPressNext;
                     if (shouldAutoPress && eventData?.isLastCell) {
                         setTimeout(() => pressKeyEvent("ArrowRight"), 2000);
@@ -603,7 +650,7 @@ function applyOverrideSettings(override) {
 }
 
 function loadSettingsAndInitialize() {
-    chrome.storage.sync.get(
+    getFromStorage(
         [
             "enabled",
             "playbackSpeed",
@@ -638,22 +685,48 @@ function loadSettingsAndInitialize() {
 }
 
 chrome.runtime.onMessage.addListener((request) => {
-    if (request.enabled !== undefined) {
-        isEnabled = request.enabled;
-        if (isEnabled) {
-            monitorVideos();
-            monitorForNewVideos();
+    if (Object.prototype.hasOwnProperty.call(request, "enabled")) {
+        const nextEnabled = request.enabled;
+        if (nextEnabled === undefined) {
+            getFromStorage("enabled", (data) => {
+                isEnabled = data.enabled ?? false;
+                if (isEnabled) {
+                    monitorVideos();
+                    monitorForNewVideos();
+                }
+            });
+        } else {
+            isEnabled = nextEnabled;
+            if (isEnabled) {
+                monitorVideos();
+                monitorForNewVideos();
+            }
         }
     }
 
-    if (request.autoPressNext !== undefined) {
-        autoPressNext = request.autoPressNext;
+    if (Object.prototype.hasOwnProperty.call(request, "autoPressNext")) {
+        if (request.autoPressNext === undefined) {
+            getFromStorage("autoPressNext", (data) => {
+                autoPressNext = data.autoPressNext ?? autoPressNext;
+            });
+        } else {
+            autoPressNext = request.autoPressNext;
+        }
     }
 
-    if (request.removeEyeTracker !== undefined) {
-        removeEyeTracker = request.removeEyeTracker;
-        if (removeEyeTracker) {
-            removeEyeTrackerElement();
+    if (Object.prototype.hasOwnProperty.call(request, "removeEyeTracker")) {
+        if (request.removeEyeTracker === undefined) {
+            getFromStorage("removeEyeTracker", (data) => {
+                removeEyeTracker = data.removeEyeTracker ?? removeEyeTracker;
+                if (removeEyeTracker) {
+                    removeEyeTrackerElement();
+                }
+            });
+        } else {
+            removeEyeTracker = request.removeEyeTracker;
+            if (removeEyeTracker) {
+                removeEyeTrackerElement();
+            }
         }
     }
 
@@ -679,7 +752,7 @@ chrome.runtime.onMessage.addListener((request) => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "sync") {
+    if (areaName !== "sync" && areaName !== "local") {
         return;
     }
 
