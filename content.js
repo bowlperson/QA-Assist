@@ -355,7 +355,7 @@ function createEventKey(eventData) {
 
 function resolveSiteName(pageUrl) {
     return new Promise((resolve) => {
-        chrome.storage.sync.get("siteInfo", (data) => {
+        chrome.storage.local.get("siteInfo", (data) => {
             const siteInfo = Array.isArray(data.siteInfo) ? data.siteInfo : [];
 
             let siteName = "";
@@ -523,7 +523,7 @@ function monitorVideos() {
 
                 pressKeyEvent("ArrowDown");
 
-                chrome.storage.sync.get("autoPressNext", (data) => {
+                chrome.storage.local.get("autoPressNext", (data) => {
                     const shouldAutoPress = data.autoPressNext ?? autoPressNext;
                     if (shouldAutoPress && eventData?.isLastCell) {
                         setTimeout(() => pressKeyEvent("ArrowRight"), 2000);
@@ -603,7 +603,7 @@ function applyOverrideSettings(override) {
 }
 
 function loadSettingsAndInitialize() {
-    chrome.storage.sync.get(
+    chrome.storage.local.get(
         [
             "enabled",
             "playbackSpeed",
@@ -679,7 +679,7 @@ chrome.runtime.onMessage.addListener((request) => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== "sync") {
+    if (areaName !== "local") {
         return;
     }
 

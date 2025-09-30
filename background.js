@@ -1,8 +1,35 @@
 const SITE_INFO_KEY = "siteInfo";
 const SITE_INFO_INITIALIZED_KEY = "siteInfoInitialized";
+const STORAGE_MIGRATION_KEYS = [
+    "enabled",
+    "playbackSpeed",
+    "pressKey",
+    "autoPressNext",
+    "removeEyeTracker",
+    "monitorName",
+    "siteOverrides",
+    SITE_INFO_KEY,
+    SITE_INFO_INITIALIZED_KEY,
+    "customSpeedRules",
+    "skipDelay",
+    "smartSkipEnabled",
+    "simpleAutoSkipEnabled",
+    "simpleAutoSkipDelay",
+    "keyDelay",
+    "loopingEnabled",
+    "loopReset",
+    "loopHold",
+    "loopFollow",
+    "siteRules",
+    "scanningEnabled",
+    "scanHotkey",
+    "scanDuration",
+    "validationVocabulary",
+    "validationFilterEnabled",
+];
 
 chrome.tabs.onActivated.addListener(() => {
-    chrome.storage.sync.get("enabled", function (data) {
+    chrome.storage.local.get("enabled", function (data) {
         chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
             if (tabs.length > 0) {
                 chrome.tabs.sendMessage(tabs[0].id, { enabled: data.enabled });
@@ -12,14 +39,46 @@ chrome.tabs.onActivated.addListener(() => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
+    migrateSyncStorage();
     initializeSiteDirectory();
 });
 chrome.runtime.onStartup.addListener(() => {
+    migrateSyncStorage();
     initializeSiteDirectory();
 });
 
+function migrateSyncStorage() {
+    if (!chrome.storage || !chrome.storage.sync || typeof chrome.storage.sync.get !== "function") {
+        return;
+    }
+
+    chrome.storage.sync.get(STORAGE_MIGRATION_KEYS, (syncData) => {
+        if (chrome.runtime.lastError || !syncData) {
+            return;
+        }
+
+        chrome.storage.local.get(STORAGE_MIGRATION_KEYS, (localData) => {
+            if (chrome.runtime.lastError) {
+                return;
+            }
+
+            const dataToMigrate = {};
+
+            STORAGE_MIGRATION_KEYS.forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(syncData, key) && localData[key] === undefined) {
+                    dataToMigrate[key] = syncData[key];
+                }
+            });
+
+            if (Object.keys(dataToMigrate).length) {
+                chrome.storage.local.set(dataToMigrate);
+            }
+        });
+    });
+}
+
 function initializeSiteDirectory() {
-    chrome.storage.sync.get([SITE_INFO_KEY, SITE_INFO_INITIALIZED_KEY], (data) => {
+    chrome.storage.local.get([SITE_INFO_KEY, SITE_INFO_INITIALIZED_KEY], (data) => {
         if (data[SITE_INFO_INITIALIZED_KEY]) {
             return;
         }
@@ -29,14 +88,14 @@ function initializeSiteDirectory() {
             .then((text) => {
                 const parsedEntries = parseSiteList(text);
                 if (!parsedEntries.length) {
-                    chrome.storage.sync.set({ [SITE_INFO_INITIALIZED_KEY]: true });
+                    chrome.storage.local.set({ [SITE_INFO_INITIALIZED_KEY]: true });
                     return;
                 }
 
                 const existing = Array.isArray(data[SITE_INFO_KEY]) ? data[SITE_INFO_KEY] : [];
                 const merged = mergeSiteInfo(existing, parsedEntries);
 
-                chrome.storage.sync.set({
+                chrome.storage.local.set({
                     [SITE_INFO_KEY]: merged,
                     [SITE_INFO_INITIALIZED_KEY]: true,
                 });

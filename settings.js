@@ -500,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loopToggle.addEventListener('change', updateLoopEnabled);
     scanToggle.addEventListener('change', updateScanEnabled);
 
-    chrome.storage.sync.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, simpleAutoSkipEnabled: false, simpleAutoSkipDelay: 5, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {}, scanningEnabled: false, scanHotkey: 'Ctrl+Shift+K', scanDuration: 60, validationVocabulary: DEFAULT_VALIDATION_VOCABULARY, validationFilterEnabled: true }, data => {
+    chrome.storage.local.get({ customSpeedRules: [], skipDelay: 0, smartSkipEnabled: false, simpleAutoSkipEnabled: false, simpleAutoSkipDelay: 5, keyDelay: 2, loopingEnabled: false, loopReset: 10, loopHold: 5, loopFollow: true, siteRules: {}, scanningEnabled: false, scanHotkey: 'Ctrl+Shift+K', scanDuration: 60, validationVocabulary: DEFAULT_VALIDATION_VOCABULARY, validationFilterEnabled: true }, data => {
         const rules = data.customSpeedRules;
         if (rules.length === 0) {
             createRuleRow();
@@ -608,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
             siteRules[url] = cfg;
         });
 
-        chrome.storage.sync.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, simpleAutoSkipEnabled: simpleEnabled, simpleAutoSkipDelay: simpleDelay, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules, scanningEnabled: scanEnabled, scanHotkey, scanDuration, validationVocabulary: sanitizedVocabulary, validationFilterEnabled }, () => {
+        chrome.storage.local.set({ customSpeedRules: rules, skipDelay: delay, smartSkipEnabled: enabled, simpleAutoSkipEnabled: simpleEnabled, simpleAutoSkipDelay: simpleDelay, keyDelay, loopingEnabled, loopReset: parseFloat(loopResetInput.value) || 10, loopHold: parseFloat(loopHoldInput.value) || 5, loopFollow: loopFollowToggle.checked, siteRules, scanningEnabled: scanEnabled, scanHotkey, scanDuration, validationVocabulary: sanitizedVocabulary, validationFilterEnabled }, () => {
             chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
                 if (tabs[0]) {
                     chrome.tabs.sendMessage(tabs[0].id, {

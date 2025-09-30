@@ -104,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
         toggle.checked = isEnabled;
         updateStatusVisuals(isEnabled);
 
-        chrome.storage.sync.set({ enabled: isEnabled }, () => {
+        chrome.storage.local.set({ enabled: isEnabled }, () => {
             sendMessageToActiveTab({ enabled: isEnabled });
         });
     }
@@ -117,7 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
         scanConfirmModal.classList.remove("show");
     }
 
-    chrome.storage.sync.get(
+    chrome.storage.local.get(
         ["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "monitorName", "siteOverrides"],
         (data) => {
             currentEnabledState = data.enabled ?? false;
@@ -158,35 +158,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
     autoPressNextToggle.addEventListener("change", () => {
         const isEnabled = autoPressNextToggle.checked;
-        chrome.storage.sync.set({ autoPressNext: isEnabled }, () => {
+        chrome.storage.local.set({ autoPressNext: isEnabled }, () => {
             sendMessageToActiveTab({ autoPressNext: isEnabled });
         });
     });
 
     removeEyeTrackerToggle.addEventListener("change", () => {
         const isEnabled = removeEyeTrackerToggle.checked;
-        chrome.storage.sync.set({ removeEyeTracker: isEnabled }, () => {
+        chrome.storage.local.set({ removeEyeTracker: isEnabled }, () => {
             sendMessageToActiveTab({ removeEyeTracker: isEnabled });
         });
     });
 
     speedSelect.addEventListener("change", () => {
         const selectedSpeed = speedSelect.value;
-        chrome.storage.sync.set({ playbackSpeed: selectedSpeed }, () => {
+        chrome.storage.local.set({ playbackSpeed: selectedSpeed }, () => {
             sendMessageToActiveTab({ playbackSpeed: selectedSpeed });
         });
     });
 
     keySelect.addEventListener("change", () => {
         const selectedKey = keySelect.value;
-        chrome.storage.sync.set({ pressKey: selectedKey }, () => {
+        chrome.storage.local.set({ pressKey: selectedKey }, () => {
             sendMessageToActiveTab({ pressKey: selectedKey });
         });
     });
 
     monitorNameInput.addEventListener("blur", () => {
         const name = monitorNameInput.value.trim();
-        chrome.storage.sync.set({ monitorName: name });
+        chrome.storage.local.set({ monitorName: name });
     });
 
     monitorNameInput.addEventListener("keydown", (event) => {
