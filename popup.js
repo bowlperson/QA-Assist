@@ -79,21 +79,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateStatusVisuals(isEnabled) {
-        statusText.textContent = isEnabled ? "Scanning" : "Standby";
-        statusText.style.color = isEnabled ? "var(--success)" : "var(--warning)";
-        statusDot.style.background = isEnabled ? "var(--success)" : "var(--warning)";
-        statusDot.style.boxShadow = isEnabled
-            ? "0 0 10px rgba(61, 214, 140, 0.7)"
-            : "0 0 8px rgba(246, 201, 95, 0.6)";
+        if (statusText) {
+            statusText.textContent = isEnabled ? "Scanning" : "Standby";
+            statusText.style.color = isEnabled ? "var(--success)" : "var(--warning)";
+        }
 
-        scanningBadge.textContent = isEnabled ? "Active" : "Standby";
-        scanningBadge.classList.toggle("active", isEnabled);
-        scanningBadge.classList.toggle("alert", !isEnabled);
+        if (statusDot) {
+            statusDot.style.background = isEnabled ? "var(--success)" : "var(--warning)";
+            statusDot.style.boxShadow = isEnabled
+                ? "0 0 10px rgba(61, 214, 140, 0.7)"
+                : "0 0 8px rgba(246, 201, 95, 0.6)";
+        }
 
-        scanIndicator.textContent = isEnabled
-            ? "Scanning mode is actively monitoring for new events."
-            : "Scanning mode is currently inactive.";
-        scanIndicator.classList.toggle("active", isEnabled);
+        if (scanningBadge) {
+            scanningBadge.textContent = isEnabled ? "Active" : "Standby";
+            scanningBadge.classList.toggle("active", isEnabled);
+            scanningBadge.classList.toggle("alert", !isEnabled);
+        }
+
+        if (scanIndicator) {
+            scanIndicator.textContent = isEnabled
+                ? "Scanning mode is actively monitoring for new events."
+                : "Scanning mode is currently inactive.";
+            scanIndicator.classList.toggle("active", isEnabled);
+        }
 
         if (statusIcon) {
             const iconPath = isEnabled ? "on.png" : "off.png";
