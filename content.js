@@ -28,14 +28,11 @@ let keyDelaySeconds = 0;
 let loopEnabled = false;
 let loopResetSeconds = 10;
 let loopHoldSeconds = 5;
-let loopFollowEnabled = true;
-let loopStuckSince = null;
 let loopActionInProgress = false;
 let loopCooldownUntil = 0;
-let loopHoldKeyActive = false;
-let loopKeyHoldInterval = null;
-let loopKeyHoldTimeout = null;
-let loopFollowTimeout = null;
+let loopHoldRepeatInterval = null;
+let loopHoldReleaseTimeout = null;
+let loopHoldActive = false;
 
 let automationInterval = null;
 
@@ -718,7 +715,6 @@ function recomputeAutomationSettings() {
     loopEnabled = normalizeBoolean(combined.loopingEnabled, false);
     loopResetSeconds = parsePositiveNumber(combined.loopReset, 10);
     loopHoldSeconds = parsePositiveNumber(combined.loopHold, 5);
-    loopFollowEnabled = normalizeBoolean(combined.loopFollow, true);
 
     if (!smartSkipEnabled) {
         clearSmartSkipActionTimeout();
@@ -727,10 +723,7 @@ function recomputeAutomationSettings() {
 
     if (!loopEnabled) {
         cancelLoopAction();
-        loopStuckSince = null;
         loopCooldownUntil = 0;
-    } else if (!previousLoop && loopEnabled) {
-        loopStuckSince = null;
     }
 
     if ((smartSkipEnabled && !previousSmartSkip) || (loopEnabled && !previousLoop)) {
@@ -748,45 +741,41 @@ function clearSmartSkipActionTimeout() {
 }
 
 function cancelLoopAction() {
-    if (loopKeyHoldInterval) {
-        clearInterval(loopKeyHoldInterval);
-        loopKeyHoldInterval = null;
+    if (loopHoldRepeatInterval) {
+        clearInterval(loopHoldRepeatInterval);
+        loopHoldRepeatInterval = null;
     }
 
-    if (loopKeyHoldTimeout) {
-        clearTimeout(loopKeyHoldTimeout);
-        loopKeyHoldTimeout = null;
+    if (loopHoldReleaseTimeout) {
+        clearTimeout(loopHoldReleaseTimeout);
+        loopHoldReleaseTimeout = null;
     }
 
-    if (loopFollowTimeout) {
-        clearTimeout(loopFollowTimeout);
-        loopFollowTimeout = null;
-    }
-
-    if (loopHoldKeyActive) {
+    if (loopHoldActive) {
         const targetElement = document.activeElement || document.body || document;
         dispatchKeyboardEvent(targetElement, "ArrowLeft", "keyup");
-        loopHoldKeyActive = false;
+        loopHoldActive = false;
     }
 
     loopActionInProgress = false;
 }
 
-function holdKeyForDuration(key, seconds, onComplete) {
+function holdLoopKey(seconds, onComplete) {
     const durationMs = Math.max(0, Number.isFinite(Number(seconds)) ? Number(seconds) * 1000 : 0);
     const targetElement = document.activeElement || document.body || document;
+    const key = "ArrowLeft";
 
     const sendKeyDown = () => dispatchKeyboardEvent(targetElement, key, "keydown");
 
     const finish = () => {
-        if (loopKeyHoldInterval) {
-            clearInterval(loopKeyHoldInterval);
-            loopKeyHoldInterval = null;
+        if (loopHoldRepeatInterval) {
+            clearInterval(loopHoldRepeatInterval);
+            loopHoldRepeatInterval = null;
         }
 
-        if (loopHoldKeyActive) {
+        if (loopHoldActive) {
             dispatchKeyboardEvent(targetElement, key, "keyup");
-            loopHoldKeyActive = false;
+            loopHoldActive = false;
         }
 
         if (typeof onComplete === "function") {
@@ -795,20 +784,14 @@ function holdKeyForDuration(key, seconds, onComplete) {
     };
 
     sendKeyDown();
-    loopHoldKeyActive = true;
-    loopKeyHoldInterval = setInterval(sendKeyDown, 150);
+    loopHoldActive = true;
+    loopHoldRepeatInterval = setInterval(sendKeyDown, 150);
 
-    if (durationMs === 0) {
-        loopKeyHoldTimeout = setTimeout(() => {
-            loopKeyHoldTimeout = null;
-            finish();
-        }, 120);
-    } else {
-        loopKeyHoldTimeout = setTimeout(() => {
-            loopKeyHoldTimeout = null;
-            finish();
-        }, durationMs);
-    }
+    const holdDuration = durationMs === 0 ? 120 : durationMs;
+    loopHoldReleaseTimeout = setTimeout(() => {
+        loopHoldReleaseTimeout = null;
+        finish();
+    }, holdDuration);
 }
 
 function completeLoopAction() {
@@ -822,27 +805,8 @@ function triggerLoopReset(now) {
     loopActionInProgress = true;
     loopCooldownUntil = now + Math.max(1000, loopResetSeconds * 1000);
     smartSkipCooldownUntil = Math.max(smartSkipCooldownUntil, loopCooldownUntil);
-    loopStuckSince = null;
 
-    holdKeyForDuration("ArrowLeft", loopHoldSeconds, () => {
-        if (!loopFollowEnabled || !pressKey) {
-            completeLoopAction();
-            return;
-        }
-
-        const followDelayMs = Math.max(0, keyDelaySeconds) * 1000;
-        if (followDelayMs === 0) {
-            pressKeyEvent(pressKey);
-            completeLoopAction();
-            return;
-        }
-
-        loopFollowTimeout = setTimeout(() => {
-            pressKeyEvent(pressKey);
-            loopFollowTimeout = null;
-            completeLoopAction();
-        }, followDelayMs);
-    });
+    holdLoopKey(loopHoldSeconds, completeLoopAction);
 }
 
 function collectCurrentEventSnapshot() {
@@ -869,14 +833,12 @@ function updateActiveEventSignature(eventData) {
 
     if (signature && signature !== currentEventSignature) {
         currentEventSignature = signature;
-        loopStuckSince = null;
         lastPlaybackDetectedAt = Date.now();
     }
 }
 
 function recordPlaybackActivity() {
     lastPlaybackDetectedAt = Date.now();
-    loopStuckSince = null;
 }
 
 function triggerSmartSkip(now) {
@@ -902,7 +864,6 @@ function triggerSmartSkip(now) {
     }
 
     lastPlaybackDetectedAt = now + delayMs;
-    loopStuckSince = null;
 }
 
 function checkSmartSkip(now) {
@@ -944,24 +905,12 @@ function checkLoopReset(now) {
         updateActiveEventSignature(snapshot);
     }
 
-    if (!currentEventSignature) {
+    const inactivityDuration = now - lastPlaybackDetectedAt;
+    if (inactivityDuration < loopResetSeconds * 1000) {
         return;
     }
 
-    const playbackRecent = now - lastPlaybackDetectedAt < 500;
-    if (playbackRecent) {
-        loopStuckSince = null;
-        return;
-    }
-
-    if (!loopStuckSince) {
-        loopStuckSince = now;
-        return;
-    }
-
-    if (now - loopStuckSince >= loopResetSeconds * 1000) {
-        triggerLoopReset(now);
-    }
+    triggerLoopReset(now);
 }
 
 function runAutomationCycle() {
@@ -1000,7 +949,6 @@ function stopAutomationTimers() {
 
     clearSmartSkipActionTimeout();
     cancelLoopAction();
-    loopStuckSince = null;
     smartSkipCooldownUntil = 0;
     loopCooldownUntil = 0;
 }
