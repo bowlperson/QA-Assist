@@ -12,7 +12,7 @@
 	
     "permissions": ["tabs", "storage", "activeTab", "scripting"],
     "background": {
-        "scripts": ["background.js"],
+        "scripts": ["enabled-state-controller.js", "background.js"],
         "persistent": false
     },
     "content_scripts": [

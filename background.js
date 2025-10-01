@@ -1,25 +1,222 @@
+const fallbackNormalizeBoolean = (value, fallback = false) => {
+    if (value === true || value === "true" || value === 1 || value === "1") {
+        return true;
+    }
+
+    if (value === false || value === "false" || value === 0 || value === "0") {
+        return false;
+    }
+
+    return Boolean(fallback);
+};
+
+const controllerNamespace = typeof EnabledStateController !== "undefined" ? EnabledStateController : null;
+const createEnabledStateController = controllerNamespace?.createEnabledStateController || null;
+const normalizeBoolean = controllerNamespace?.normalizeBoolean || fallbackNormalizeBoolean;
+
+const enabledStateController = createEnabledStateController ? createEnabledStateController(chrome) : null;
+
 const SITE_INFO_KEY = "siteInfo";
 const SITE_INFO_INITIALIZED_KEY = "siteInfoInitialized";
+const STORAGE_MIGRATION_KEYS = [
+    "enabled",
+    "playbackSpeed",
+    "pressKey",
+    "autoPressNext",
+    "removeEyeTracker",
+    "monitorName",
+    "siteOverrides",
+    SITE_INFO_KEY,
+    SITE_INFO_INITIALIZED_KEY,
+    "customSpeedRules",
+    "skipDelay",
+    "smartSkipEnabled",
+    "simpleAutoSkipEnabled",
+    "simpleAutoSkipDelay",
+    "keyDelay",
+    "loopingEnabled",
+    "loopReset",
+    "loopHold",
+    "loopFollow",
+    "siteRules",
+    "scanningEnabled",
+    "scanHotkey",
+    "scanDuration",
+    "validationVocabulary",
+    "validationFilterEnabled",
+];
 
-chrome.tabs.onActivated.addListener(() => {
-    chrome.storage.sync.get("enabled", function (data) {
-        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            if (tabs.length > 0) {
-                chrome.tabs.sendMessage(tabs[0].id, { enabled: data.enabled });
-            }
+function updateBrowserActionIcon(isEnabled) {
+    if (!chrome.browserAction || typeof chrome.browserAction.setIcon !== "function") {
+        return;
+    }
+
+    const iconPath = isEnabled ? "on.png" : "off.png";
+    chrome.browserAction.setIcon({ path: iconPath });
+}
+
+function broadcastEnabledState(isEnabled, specificTabId) {
+    if (!chrome.tabs || typeof chrome.tabs.sendMessage !== "function") {
+        return;
+    }
+
+    const payload = { enabled: isEnabled };
+
+    if (typeof specificTabId === "number") {
+        chrome.tabs.sendMessage(specificTabId, payload, () => chrome.runtime.lastError);
+        return;
+    }
+
+    chrome.tabs.query({}, (tabs) => {
+        if (chrome.runtime.lastError || !Array.isArray(tabs)) {
+            return;
+        }
+
+        tabs.forEach((tab) => {
+            chrome.tabs.sendMessage(tab.id, payload, () => chrome.runtime.lastError);
         });
+    });
+}
+
+if (enabledStateController) {
+    enabledStateController.onChange((state) => {
+        updateBrowserActionIcon(state);
+        broadcastEnabledState(state);
+    });
+
+    enabledStateController
+        .ensureLoaded()
+        .then((state) => {
+            updateBrowserActionIcon(state);
+        })
+        .catch((error) => {
+            console.error("Failed to initialize enabled state", error);
+        });
+}
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+    if (enabledStateController) {
+        enabledStateController
+            .ensureLoaded()
+            .then((state) => {
+                broadcastEnabledState(state, tabId);
+            })
+            .catch((error) => {
+                console.error("Failed to sync enabled state to activated tab", error);
+            });
+        return;
+    }
+
+    chrome.storage.local.get("enabled", (data) => {
+        chrome.tabs.sendMessage(tabId, { enabled: data.enabled }, () => chrome.runtime.lastError);
     });
 });
 
 chrome.runtime.onInstalled.addListener(() => {
+    migrateSyncStorage();
     initializeSiteDirectory();
 });
 chrome.runtime.onStartup.addListener(() => {
+    migrateSyncStorage();
     initializeSiteDirectory();
 });
 
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || typeof message !== "object") {
+        return;
+    }
+
+    if (message.type === "getEnabledState") {
+        if (enabledStateController) {
+            enabledStateController
+                .ensureLoaded()
+                .then((state) => sendResponse({ enabled: state }))
+                .catch((error) => {
+                    console.error("Failed to retrieve enabled state", error);
+                    sendResponse({ enabled: false, error: error?.message || "Failed to retrieve enabled state" });
+                });
+            return true;
+        }
+
+        chrome.storage.local.get({ enabled: false }, (data) => {
+            sendResponse({ enabled: normalizeBoolean(data.enabled, false) });
+        });
+        return true;
+    }
+
+    if (message.type === "setEnabledState") {
+        if (enabledStateController) {
+            enabledStateController
+                .setState(message.value)
+                .then((state) => sendResponse({ success: true, enabled: state }))
+                .catch((error) => {
+                    console.error("Failed to update enabled state", error);
+                    sendResponse({
+                        success: false,
+                        enabled: enabledStateController.getCurrentState(),
+                        error: error?.message || "Failed to update enabled state",
+                    });
+                });
+            return true;
+        }
+
+        const desiredState = normalizeBoolean(message.value, false);
+        chrome.storage.local.set({ enabled: desiredState }, () => {
+            if (chrome.runtime.lastError) {
+                console.error("Failed to update enabled state", chrome.runtime.lastError);
+                sendResponse({
+                    success: false,
+                    enabled: normalizeBoolean(message.value, false),
+                    error: chrome.runtime.lastError.message,
+                });
+                return;
+            }
+
+            broadcastEnabledState(desiredState);
+            sendResponse({ success: true, enabled: desiredState });
+        });
+        return true;
+    }
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (enabledStateController) {
+        enabledStateController.handleStorageChange(changes, areaName);
+    }
+});
+
+function migrateSyncStorage() {
+    if (!chrome.storage || !chrome.storage.sync || typeof chrome.storage.sync.get !== "function") {
+        return;
+    }
+
+    chrome.storage.sync.get(STORAGE_MIGRATION_KEYS, (syncData) => {
+        if (chrome.runtime.lastError || !syncData) {
+            return;
+        }
+
+        chrome.storage.local.get(STORAGE_MIGRATION_KEYS, (localData) => {
+            if (chrome.runtime.lastError) {
+                return;
+            }
+
+            const dataToMigrate = {};
+
+            STORAGE_MIGRATION_KEYS.forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(syncData, key) && localData[key] === undefined) {
+                    dataToMigrate[key] = syncData[key];
+                }
+            });
+
+            if (Object.keys(dataToMigrate).length) {
+                chrome.storage.local.set(dataToMigrate);
+            }
+        });
+    });
+}
+
 function initializeSiteDirectory() {
-    chrome.storage.sync.get([SITE_INFO_KEY, SITE_INFO_INITIALIZED_KEY], (data) => {
+    chrome.storage.local.get([SITE_INFO_KEY, SITE_INFO_INITIALIZED_KEY], (data) => {
         if (data[SITE_INFO_INITIALIZED_KEY]) {
             return;
         }
@@ -29,14 +226,14 @@ function initializeSiteDirectory() {
             .then((text) => {
                 const parsedEntries = parseSiteList(text);
                 if (!parsedEntries.length) {
-                    chrome.storage.sync.set({ [SITE_INFO_INITIALIZED_KEY]: true });
+                    chrome.storage.local.set({ [SITE_INFO_INITIALIZED_KEY]: true });
                     return;
                 }
 
                 const existing = Array.isArray(data[SITE_INFO_KEY]) ? data[SITE_INFO_KEY] : [];
                 const merged = mergeSiteInfo(existing, parsedEntries);
 
-                chrome.storage.sync.set({
+                chrome.storage.local.set({
                     [SITE_INFO_KEY]: merged,
                     [SITE_INFO_INITIALIZED_KEY]: true,
                 });

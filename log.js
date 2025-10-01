@@ -787,7 +787,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <span>${log.pageUrl ? `<a href="${log.pageUrl}" target="_blank">${log.pageUrl}</a>` : "—"}</span>
         `;
 
-        chrome.storage.sync.get("monitorName", (data) => {
+        chrome.storage.local.get("monitorName", (data) => {
             const storedName = data.monitorName || "";
             monitorInput.value = storedName;
             activeCallState.monitorName = storedName;
@@ -933,7 +933,7 @@ document.addEventListener("DOMContentLoaded", () => {
         );
         attemptRecord.tabRow = tabRow;
 
-        chrome.storage.sync.set({ monitorName });
+        chrome.storage.local.set({ monitorName });
         saveLogs();
         updateDisplays(logs);
 
@@ -1246,7 +1246,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    chrome.storage.sync.get(
+    chrome.storage.local.get(
         { validationVocabulary: DEFAULT_VALIDATION_VOCABULARY, validationFilterEnabled: true },
         (data) => {
             refreshValidationPreferences(data.validationVocabulary, data.validationFilterEnabled);
@@ -1254,7 +1254,7 @@ document.addEventListener("DOMContentLoaded", () => {
     );
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
-        if (areaName !== "sync") {
+        if (areaName !== "local") {
             return;
         }
 

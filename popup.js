@@ -21,6 +21,18 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentEnabledState = false;
     let cachedOverrides = [];
 
+    function normalizeBoolean(value, fallback = false) {
+        if (value === true || value === "true" || value === 1 || value === "1") {
+            return true;
+        }
+
+        if (value === false || value === "false" || value === 0 || value === "0") {
+            return false;
+        }
+
+        return fallback;
+    }
+
     function findOverrideForUrl(url, overrides) {
         if (!url || !Array.isArray(overrides)) {
             return null;
@@ -67,21 +79,30 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateStatusVisuals(isEnabled) {
-        statusText.textContent = isEnabled ? "Scanning" : "Standby";
-        statusText.style.color = isEnabled ? "var(--success)" : "var(--warning)";
-        statusDot.style.background = isEnabled ? "var(--success)" : "var(--warning)";
-        statusDot.style.boxShadow = isEnabled
-            ? "0 0 10px rgba(61, 214, 140, 0.7)"
-            : "0 0 8px rgba(246, 201, 95, 0.6)";
+        if (statusText) {
+            statusText.textContent = isEnabled ? "Scanning" : "Standby";
+            statusText.style.color = isEnabled ? "var(--success)" : "var(--warning)";
+        }
 
-        scanningBadge.textContent = isEnabled ? "Active" : "Standby";
-        scanningBadge.classList.toggle("active", isEnabled);
-        scanningBadge.classList.toggle("alert", !isEnabled);
+        if (statusDot) {
+            statusDot.style.background = isEnabled ? "var(--success)" : "var(--warning)";
+            statusDot.style.boxShadow = isEnabled
+                ? "0 0 10px rgba(61, 214, 140, 0.7)"
+                : "0 0 8px rgba(246, 201, 95, 0.6)";
+        }
 
-        scanIndicator.textContent = isEnabled
-            ? "Scanning mode is actively monitoring for new events."
-            : "Scanning mode is currently inactive.";
-        scanIndicator.classList.toggle("active", isEnabled);
+        if (scanningBadge) {
+            scanningBadge.textContent = isEnabled ? "Active" : "Standby";
+            scanningBadge.classList.toggle("active", isEnabled);
+            scanningBadge.classList.toggle("alert", !isEnabled);
+        }
+
+        if (scanIndicator) {
+            scanIndicator.textContent = isEnabled
+                ? "Scanning mode is actively monitoring for new events."
+                : "Scanning mode is currently inactive.";
+            scanIndicator.classList.toggle("active", isEnabled);
+        }
 
         if (statusIcon) {
             const iconPath = isEnabled ? "on.png" : "off.png";
@@ -99,13 +120,53 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function setEnabledState(isEnabled) {
-        currentEnabledState = isEnabled;
-        toggle.checked = isEnabled;
-        updateStatusVisuals(isEnabled);
+    function applyEnabledState(isEnabled) {
+        const normalizedState = normalizeBoolean(isEnabled, false);
+        currentEnabledState = normalizedState;
+        toggle.checked = normalizedState;
+        updateStatusVisuals(normalizedState);
+    }
 
-        chrome.storage.sync.set({ enabled: isEnabled }, () => {
-            sendMessageToActiveTab({ enabled: isEnabled });
+    function syncEnabledStateFromBackground() {
+        chrome.runtime.sendMessage({ type: "getEnabledState" }, (response) => {
+            if (chrome.runtime.lastError || !response || !Object.prototype.hasOwnProperty.call(response, "enabled")) {
+                return;
+            }
+
+            const backgroundState = normalizeBoolean(response.enabled, currentEnabledState);
+            if (backgroundState !== currentEnabledState) {
+                applyEnabledState(backgroundState);
+            }
+        });
+    }
+
+    function commitEnabledState(isEnabled) {
+        const normalizedState = normalizeBoolean(isEnabled, false);
+        const previousState = currentEnabledState;
+
+        if (normalizedState === currentEnabledState) {
+            toggle.checked = currentEnabledState;
+            updateStatusVisuals(currentEnabledState);
+            return;
+        }
+
+        applyEnabledState(normalizedState);
+        toggle.disabled = true;
+
+        chrome.runtime.sendMessage({ type: "setEnabledState", value: normalizedState }, (response) => {
+            toggle.disabled = false;
+
+            if (chrome.runtime.lastError || !response || response.success === false) {
+                console.error(
+                    "Failed to persist enabled state",
+                    chrome.runtime.lastError || response?.error || "Unknown error",
+                );
+                applyEnabledState(previousState);
+                return;
+            }
+
+            const confirmedState = normalizeBoolean(response.enabled, normalizedState);
+            applyEnabledState(confirmedState);
         });
     }
 
@@ -117,21 +178,28 @@ document.addEventListener("DOMContentLoaded", () => {
         scanConfirmModal.classList.remove("show");
     }
 
-    chrome.storage.sync.get(
-        ["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "monitorName", "siteOverrides"],
+    chrome.storage.local.get(
+        {
+            enabled: false,
+            playbackSpeed: "1",
+            pressKey: "ArrowDown",
+            autoPressNext: false,
+            removeEyeTracker: false,
+            monitorName: "",
+            siteOverrides: [],
+        },
         (data) => {
-            currentEnabledState = data.enabled ?? false;
-            toggle.checked = currentEnabledState;
+            applyEnabledState(data.enabled);
             speedSelect.value = data.playbackSpeed || "1";
             keySelect.value = data.pressKey || "ArrowDown";
-            autoPressNextToggle.checked = data.autoPressNext ?? false;
-            removeEyeTrackerToggle.checked = data.removeEyeTracker ?? false;
+            autoPressNextToggle.checked = normalizeBoolean(data.autoPressNext, false);
+            removeEyeTrackerToggle.checked = normalizeBoolean(data.removeEyeTracker, false);
             monitorNameInput.value = data.monitorName || "";
             cachedOverrides = Array.isArray(data.siteOverrides) ? data.siteOverrides : [];
 
-            updateStatusVisuals(currentEnabledState);
             updateOverrideBadge(cachedOverrides);
             sendMessageToActiveTab({ siteOverrides: cachedOverrides });
+            syncEnabledStateFromBackground();
         },
     );
 
@@ -143,50 +211,61 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        setEnabledState(desiredState);
+        commitEnabledState(desiredState);
     });
 
     confirmScanButton.addEventListener("click", () => {
         closeScanConfirm();
-        setEnabledState(true);
+        commitEnabledState(true);
     });
 
     cancelScanButton.addEventListener("click", () => {
         closeScanConfirm();
-        setEnabledState(false);
+        applyEnabledState(false);
+    });
+
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local" || !Object.prototype.hasOwnProperty.call(changes, "enabled")) {
+            return;
+        }
+
+        const updatedState = normalizeBoolean(changes.enabled.newValue, false);
+        if (updatedState !== currentEnabledState) {
+            applyEnabledState(updatedState);
+        }
     });
 
     autoPressNextToggle.addEventListener("change", () => {
-        const isEnabled = autoPressNextToggle.checked;
-        chrome.storage.sync.set({ autoPressNext: isEnabled }, () => {
+        const isEnabled = normalizeBoolean(autoPressNextToggle.checked, false);
+        chrome.storage.local.set({ autoPressNext: isEnabled }, () => {
             sendMessageToActiveTab({ autoPressNext: isEnabled });
         });
     });
 
     removeEyeTrackerToggle.addEventListener("change", () => {
-        const isEnabled = removeEyeTrackerToggle.checked;
-        chrome.storage.sync.set({ removeEyeTracker: isEnabled }, () => {
+        const isEnabled = normalizeBoolean(removeEyeTrackerToggle.checked, false);
+        chrome.storage.local.set({ removeEyeTracker: isEnabled }, () => {
             sendMessageToActiveTab({ removeEyeTracker: isEnabled });
         });
     });
 
     speedSelect.addEventListener("change", () => {
         const selectedSpeed = speedSelect.value;
-        chrome.storage.sync.set({ playbackSpeed: selectedSpeed }, () => {
+        chrome.storage.local.set({ playbackSpeed: selectedSpeed }, () => {
             sendMessageToActiveTab({ playbackSpeed: selectedSpeed });
         });
     });
 
     keySelect.addEventListener("change", () => {
         const selectedKey = keySelect.value;
-        chrome.storage.sync.set({ pressKey: selectedKey }, () => {
+        chrome.storage.local.set({ pressKey: selectedKey }, () => {
             sendMessageToActiveTab({ pressKey: selectedKey });
         });
     });
 
     monitorNameInput.addEventListener("blur", () => {
         const name = monitorNameInput.value.trim();
-        chrome.storage.sync.set({ monitorName: name });
+        chrome.storage.local.set({ monitorName: name });
     });
 
     monitorNameInput.addEventListener("keydown", (event) => {

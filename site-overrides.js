@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function saveOverrides() {
-        chrome.storage.sync.set({ siteOverrides: overrides }, () => {
+        chrome.storage.local.set({ siteOverrides: overrides }, () => {
             broadcastOverrides();
         });
     }
@@ -424,7 +424,7 @@ document.addEventListener("DOMContentLoaded", () => {
     attachToggleListeners();
     updateFormStates();
 
-    chrome.storage.sync.get("siteOverrides", (data) => {
+    chrome.storage.local.get("siteOverrides", (data) => {
         overrides = Array.isArray(data.siteOverrides) ? data.siteOverrides : [];
         renderOverrides();
     });

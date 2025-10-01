@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function saveSites() {
-        chrome.storage.sync.set({ siteInfo: sites });
+        chrome.storage.local.set({ siteInfo: sites });
     }
 
     function resetForm() {
@@ -270,7 +270,7 @@ document.addEventListener("DOMContentLoaded", () => {
         resetForm();
     });
 
-    chrome.storage.sync.get("siteInfo", (data) => {
+    chrome.storage.local.get("siteInfo", (data) => {
         const loadedSites = Array.isArray(data.siteInfo) ? data.siteInfo : [];
         sites = loadedSites
             .map((site) => ensureSiteShape(site))
