@@ -561,6 +561,20 @@ function monitorForNewVideos() {
     mutationObserver.observe(document.body, { childList: true, subtree: true });
 }
 
+function stopMonitoring() {
+    if (mutationObserver) {
+        mutationObserver.disconnect();
+        mutationObserver = null;
+    }
+
+    const videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+    videos.forEach((video) => {
+        if (video.dataset && video.dataset.listenerAdded) {
+            delete video.dataset.listenerAdded;
+        }
+    });
+}
+
 function findOverrideForUrl(url, overrides) {
     if (!url || !Array.isArray(overrides)) {
         return null;
@@ -611,6 +625,9 @@ function applyOverrideSettings(override) {
 
     if (typeof override.enableScanning === "boolean") {
         isEnabled = override.enableScanning;
+        if (!isEnabled) {
+            stopMonitoring();
+        }
     }
 }
 
@@ -645,6 +662,8 @@ function loadSettingsAndInitialize() {
             if (removeEyeTracker) {
                 removeEyeTrackerElement();
             }
+
+            syncEnabledStateFromBackground();
         },
     );
 }
@@ -655,6 +674,8 @@ chrome.runtime.onMessage.addListener((request) => {
         if (isEnabled) {
             monitorVideos();
             monitorForNewVideos();
+        } else {
+            stopMonitoring();
         }
     }
 
@@ -705,5 +726,30 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
         );
     }
 });
+
+function syncEnabledStateFromBackground() {
+    if (!chrome.runtime || typeof chrome.runtime.sendMessage !== "function") {
+        return;
+    }
+
+    chrome.runtime.sendMessage({ type: "getEnabledState" }, (response) => {
+        if (chrome.runtime.lastError || !response || !Object.prototype.hasOwnProperty.call(response, "enabled")) {
+            return;
+        }
+
+        const backgroundState = normalizeBoolean(response.enabled, isEnabled);
+        if (backgroundState === isEnabled) {
+            return;
+        }
+
+        isEnabled = backgroundState;
+        if (isEnabled) {
+            monitorVideos();
+            monitorForNewVideos();
+        } else {
+            stopMonitoring();
+        }
+    });
+}
 
 loadSettingsAndInitialize();

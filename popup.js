@@ -120,29 +120,54 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function persistEnabledState(isEnabled) {
-        chrome.storage.local.set({ enabled: isEnabled }, () => {
-            if (chrome.runtime.lastError) {
-                console.error("Failed to persist enabled state", chrome.runtime.lastError);
-                chrome.storage.local.get({ enabled: false }, (data) => {
-                    currentEnabledState = normalizeBoolean(data.enabled, false);
-                    toggle.checked = currentEnabledState;
-                    updateStatusVisuals(currentEnabledState);
-                });
-                return;
-            }
-
-            sendMessageToActiveTab({ enabled: isEnabled });
-        });
-    }
-
-    function setEnabledState(isEnabled) {
+    function applyEnabledState(isEnabled) {
         const normalizedState = normalizeBoolean(isEnabled, false);
         currentEnabledState = normalizedState;
         toggle.checked = normalizedState;
         updateStatusVisuals(normalizedState);
+    }
 
-        persistEnabledState(normalizedState);
+    function syncEnabledStateFromBackground() {
+        chrome.runtime.sendMessage({ type: "getEnabledState" }, (response) => {
+            if (chrome.runtime.lastError || !response || !Object.prototype.hasOwnProperty.call(response, "enabled")) {
+                return;
+            }
+
+            const backgroundState = normalizeBoolean(response.enabled, currentEnabledState);
+            if (backgroundState !== currentEnabledState) {
+                applyEnabledState(backgroundState);
+            }
+        });
+    }
+
+    function commitEnabledState(isEnabled) {
+        const normalizedState = normalizeBoolean(isEnabled, false);
+        const previousState = currentEnabledState;
+
+        if (normalizedState === currentEnabledState) {
+            toggle.checked = currentEnabledState;
+            updateStatusVisuals(currentEnabledState);
+            return;
+        }
+
+        applyEnabledState(normalizedState);
+        toggle.disabled = true;
+
+        chrome.runtime.sendMessage({ type: "setEnabledState", value: normalizedState }, (response) => {
+            toggle.disabled = false;
+
+            if (chrome.runtime.lastError || !response || response.success === false) {
+                console.error(
+                    "Failed to persist enabled state",
+                    chrome.runtime.lastError || response?.error || "Unknown error",
+                );
+                applyEnabledState(previousState);
+                return;
+            }
+
+            const confirmedState = normalizeBoolean(response.enabled, normalizedState);
+            applyEnabledState(confirmedState);
+        });
     }
 
     function openScanConfirm() {
@@ -164,8 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
             siteOverrides: [],
         },
         (data) => {
-            currentEnabledState = normalizeBoolean(data.enabled, false);
-            toggle.checked = currentEnabledState;
+            applyEnabledState(data.enabled);
             speedSelect.value = data.playbackSpeed || "1";
             keySelect.value = data.pressKey || "ArrowDown";
             autoPressNextToggle.checked = normalizeBoolean(data.autoPressNext, false);
@@ -173,9 +197,9 @@ document.addEventListener("DOMContentLoaded", () => {
             monitorNameInput.value = data.monitorName || "";
             cachedOverrides = Array.isArray(data.siteOverrides) ? data.siteOverrides : [];
 
-            updateStatusVisuals(currentEnabledState);
             updateOverrideBadge(cachedOverrides);
             sendMessageToActiveTab({ siteOverrides: cachedOverrides });
+            syncEnabledStateFromBackground();
         },
     );
 
@@ -187,17 +211,17 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        setEnabledState(desiredState);
+        commitEnabledState(desiredState);
     });
 
     confirmScanButton.addEventListener("click", () => {
         closeScanConfirm();
-        setEnabledState(true);
+        commitEnabledState(true);
     });
 
     cancelScanButton.addEventListener("click", () => {
         closeScanConfirm();
-        setEnabledState(false);
+        applyEnabledState(false);
     });
 
     chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -206,13 +230,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const updatedState = normalizeBoolean(changes.enabled.newValue, false);
-        if (updatedState === currentEnabledState) {
-            return;
+        if (updatedState !== currentEnabledState) {
+            applyEnabledState(updatedState);
         }
-
-        currentEnabledState = updatedState;
-        toggle.checked = updatedState;
-        updateStatusVisuals(updatedState);
     });
 
     autoPressNextToggle.addEventListener("change", () => {
