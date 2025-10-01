@@ -21,6 +21,18 @@ document.addEventListener("DOMContentLoaded", () => {
     let currentEnabledState = false;
     let cachedOverrides = [];
 
+    function normalizeBoolean(value, fallback = false) {
+        if (value === true || value === "true" || value === 1 || value === "1") {
+            return true;
+        }
+
+        if (value === false || value === "false" || value === 0 || value === "0") {
+            return false;
+        }
+
+        return fallback;
+    }
+
     function findOverrideForUrl(url, overrides) {
         if (!url || !Array.isArray(overrides)) {
             return null;
@@ -99,14 +111,29 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function setEnabledState(isEnabled) {
-        currentEnabledState = isEnabled;
-        toggle.checked = isEnabled;
-        updateStatusVisuals(isEnabled);
-
+    function persistEnabledState(isEnabled) {
         chrome.storage.local.set({ enabled: isEnabled }, () => {
+            if (chrome.runtime.lastError) {
+                console.error("Failed to persist enabled state", chrome.runtime.lastError);
+                chrome.storage.local.get({ enabled: false }, (data) => {
+                    currentEnabledState = normalizeBoolean(data.enabled, false);
+                    toggle.checked = currentEnabledState;
+                    updateStatusVisuals(currentEnabledState);
+                });
+                return;
+            }
+
             sendMessageToActiveTab({ enabled: isEnabled });
         });
+    }
+
+    function setEnabledState(isEnabled) {
+        const normalizedState = normalizeBoolean(isEnabled, false);
+        currentEnabledState = normalizedState;
+        toggle.checked = normalizedState;
+        updateStatusVisuals(normalizedState);
+
+        persistEnabledState(normalizedState);
     }
 
     function openScanConfirm() {
@@ -118,14 +145,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     chrome.storage.local.get(
-        ["enabled", "playbackSpeed", "pressKey", "autoPressNext", "removeEyeTracker", "monitorName", "siteOverrides"],
+        {
+            enabled: false,
+            playbackSpeed: "1",
+            pressKey: "ArrowDown",
+            autoPressNext: false,
+            removeEyeTracker: false,
+            monitorName: "",
+            siteOverrides: [],
+        },
         (data) => {
-            currentEnabledState = data.enabled ?? false;
+            currentEnabledState = normalizeBoolean(data.enabled, false);
             toggle.checked = currentEnabledState;
             speedSelect.value = data.playbackSpeed || "1";
             keySelect.value = data.pressKey || "ArrowDown";
-            autoPressNextToggle.checked = data.autoPressNext ?? false;
-            removeEyeTrackerToggle.checked = data.removeEyeTracker ?? false;
+            autoPressNextToggle.checked = normalizeBoolean(data.autoPressNext, false);
+            removeEyeTrackerToggle.checked = normalizeBoolean(data.removeEyeTracker, false);
             monitorNameInput.value = data.monitorName || "";
             cachedOverrides = Array.isArray(data.siteOverrides) ? data.siteOverrides : [];
 
@@ -156,15 +191,30 @@ document.addEventListener("DOMContentLoaded", () => {
         setEnabledState(false);
     });
 
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local" || !Object.prototype.hasOwnProperty.call(changes, "enabled")) {
+            return;
+        }
+
+        const updatedState = normalizeBoolean(changes.enabled.newValue, false);
+        if (updatedState === currentEnabledState) {
+            return;
+        }
+
+        currentEnabledState = updatedState;
+        toggle.checked = updatedState;
+        updateStatusVisuals(updatedState);
+    });
+
     autoPressNextToggle.addEventListener("change", () => {
-        const isEnabled = autoPressNextToggle.checked;
+        const isEnabled = normalizeBoolean(autoPressNextToggle.checked, false);
         chrome.storage.local.set({ autoPressNext: isEnabled }, () => {
             sendMessageToActiveTab({ autoPressNext: isEnabled });
         });
     });
 
     removeEyeTrackerToggle.addEventListener("change", () => {
-        const isEnabled = removeEyeTrackerToggle.checked;
+        const isEnabled = normalizeBoolean(removeEyeTrackerToggle.checked, false);
         chrome.storage.local.set({ removeEyeTracker: isEnabled }, () => {
             sendMessageToActiveTab({ removeEyeTracker: isEnabled });
         });

@@ -21,6 +21,18 @@ let validationVocabulary = cloneDefaultVocabulary();
 let validationFilterEnabled = true;
 let validationMatchers = buildValidationMatchers(validationVocabulary);
 
+function normalizeBoolean(value, fallback = false) {
+    if (value === true || value === "true" || value === 1 || value === "1") {
+        return true;
+    }
+
+    if (value === false || value === "false" || value === 0 || value === "0") {
+        return false;
+    }
+
+    return fallback;
+}
+
 function getPageUrl() {
     return window.location.href.split("#")[0];
 }
@@ -604,23 +616,23 @@ function applyOverrideSettings(override) {
 
 function loadSettingsAndInitialize() {
     chrome.storage.local.get(
-        [
-            "enabled",
-            "playbackSpeed",
-            "pressKey",
-            "autoPressNext",
-            "removeEyeTracker",
-            "siteOverrides",
-            "validationVocabulary",
-            "validationFilterEnabled",
-        ],
+        {
+            enabled: false,
+            playbackSpeed: "1",
+            pressKey: "ArrowDown",
+            autoPressNext: false,
+            removeEyeTracker: false,
+            siteOverrides: [],
+            validationVocabulary: DEFAULT_VALIDATION_VOCABULARY,
+            validationFilterEnabled: true,
+        },
         (data) => {
             applyValidationPreferences(data.validationVocabulary, data.validationFilterEnabled);
-            isEnabled = data.enabled || false;
+            isEnabled = normalizeBoolean(data.enabled, false);
             playbackSpeed = parseFloat(data.playbackSpeed) || 1.0;
             pressKey = data.pressKey || "ArrowDown";
-            autoPressNext = data.autoPressNext ?? false;
-            removeEyeTracker = data.removeEyeTracker ?? false;
+            autoPressNext = normalizeBoolean(data.autoPressNext, false);
+            removeEyeTracker = normalizeBoolean(data.removeEyeTracker, false);
 
             const override = findOverrideForUrl(window.location.href, data.siteOverrides || []);
             applyOverrideSettings(override);
@@ -639,7 +651,7 @@ function loadSettingsAndInitialize() {
 
 chrome.runtime.onMessage.addListener((request) => {
     if (request.enabled !== undefined) {
-        isEnabled = request.enabled;
+        isEnabled = normalizeBoolean(request.enabled, false);
         if (isEnabled) {
             monitorVideos();
             monitorForNewVideos();
@@ -647,11 +659,11 @@ chrome.runtime.onMessage.addListener((request) => {
     }
 
     if (request.autoPressNext !== undefined) {
-        autoPressNext = request.autoPressNext;
+        autoPressNext = normalizeBoolean(request.autoPressNext, false);
     }
 
     if (request.removeEyeTracker !== undefined) {
-        removeEyeTracker = request.removeEyeTracker;
+        removeEyeTracker = normalizeBoolean(request.removeEyeTracker, false);
         if (removeEyeTracker) {
             removeEyeTrackerElement();
         }
