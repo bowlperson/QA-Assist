@@ -13,6 +13,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const removeEyeToggle = document.getElementById("removeEyeToggle");
     const instaLogButton = document.getElementById("instaLog");
     const universalSpeedSelect = document.getElementById("universalSpeedSelect");
+    const pauseAllButton = document.getElementById("pauseAll");
+    const playAllButton = document.getElementById("playAll");
     const lostMessage = document.getElementById("lostMessage");
     const forceAutoButton = document.getElementById("forceAuto");
     const openLogButton = document.getElementById("openLog");
@@ -156,6 +158,12 @@ document.addEventListener("DOMContentLoaded", () => {
         removeEyeToggle.disabled = !extensionActive;
         if (universalSpeedSelect) {
             universalSpeedSelect.disabled = !extensionActive;
+        }
+        if (pauseAllButton) {
+            pauseAllButton.disabled = !extensionActive;
+        }
+        if (playAllButton) {
+            playAllButton.disabled = !extensionActive;
         }
         if (dispatchInput) {
             dispatchInput.disabled = !extensionActive;
@@ -536,6 +544,22 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function broadcastPlaybackCommand(action) {
+        if (!currentEnabled) {
+            return;
+        }
+        chrome.tabs.query({}, (tabs) => {
+            if (chrome.runtime.lastError || !Array.isArray(tabs)) {
+                return;
+            }
+            tabs.forEach((tab) => {
+                chrome.tabs.sendMessage(tab.id, { type: "qaAssist:playbackCommand", action }, () => {
+                    chrome.runtime.lastError;
+                });
+            });
+        });
+    }
+
     extensionToggle.addEventListener("change", () => {
         const desiredState = extensionToggle.checked;
         commitEnabledState(desiredState);
@@ -576,6 +600,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (universalSpeedSelect) {
         universalSpeedSelect.addEventListener("change", () => {
             commitUniversalSpeed(universalSpeedSelect.value);
+        });
+    }
+
+    if (pauseAllButton) {
+        pauseAllButton.addEventListener("click", () => {
+            broadcastPlaybackCommand("pause");
+        });
+    }
+
+    if (playAllButton) {
+        playAllButton.addEventListener("click", () => {
+            broadcastPlaybackCommand("play");
         });
     }
 

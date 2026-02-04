@@ -1,6 +1,7 @@
 const FATIGUE_WINDOW_ONE_HOUR = 60 * 60 * 1000;
 const FATIGUE_WINDOW_TWO_HOURS = 2 * 60 * 60 * 1000;
-const EVENT_FLUCTUATION_WINDOW = 2 * 60 * 1000;
+const EVENT_FLUCTUATION_WINDOW = 60 * 1000;
+const EVENT_FLUCTUATION_MIN_EVENTS = 3;
 const SPOTLIGHT_WINDOW = 60 * 60 * 1000;
 
 const EVENT_TYPE_SPOTLIGHTS = ["searching face", "blocked"];
@@ -991,39 +992,50 @@ function buildFluctuationClusters(logs) {
 
     byTruck.forEach((bucket, truckKey) => {
         const sorted = bucket.events
-            .filter((event) => Number.isFinite(getEventTime(event)))
-            .sort((a, b) => getEventTime(a) - getEventTime(b));
-        let current = [];
+            .map((event) => ({ event, time: getEventTime(event) }))
+            .filter((entry) => Number.isFinite(entry.time))
+            .sort((a, b) => a.time - b.time);
 
-        sorted.forEach((event) => {
-            if (!current.length) {
-                current.push(event);
-                return;
+        let start = 0;
+        const windows = [];
+
+        for (let end = 0; end < sorted.length; end += 1) {
+            const endTime = sorted[end].time;
+            while (start < end && endTime - sorted[start].time > EVENT_FLUCTUATION_WINDOW) {
+                start += 1;
             }
-            const previous = current[current.length - 1];
-            if (getEventTime(event) - getEventTime(previous) <= EVENT_FLUCTUATION_WINDOW) {
-                current.push(event);
+
+            const count = end - start + 1;
+            if (count >= EVENT_FLUCTUATION_MIN_EVENTS) {
+                windows.push({ start, end });
+            }
+        }
+
+        if (!windows.length) {
+            return;
+        }
+
+        const merged = [];
+        windows.forEach((window) => {
+            const last = merged[merged.length - 1];
+            if (!last || window.start > last.end) {
+                merged.push({ ...window });
             } else {
-                if (current.length > 1) {
-                    clusters.push({
-                        truckNumber: safeText(current[0].truckNumber) || bucket.display || truckKey,
-                        start: getEventTime(current[0]),
-                        end: getEventTime(current[current.length - 1]),
-                        events: current.slice(),
-                    });
-                }
-                current = [event];
+                last.end = Math.max(last.end, window.end);
             }
         });
 
-        if (current.length > 1) {
-            clusters.push({
-                truckNumber: safeText(current[0].truckNumber) || bucket.display || truckKey,
-                start: getEventTime(current[0]),
-                end: getEventTime(current[current.length - 1]),
-                events: current.slice(),
-            });
-        }
+        merged.forEach((window) => {
+            const events = sorted.slice(window.start, window.end + 1).map((entry) => entry.event);
+            if (events.length >= EVENT_FLUCTUATION_MIN_EVENTS) {
+                clusters.push({
+                    truckNumber: safeText(events[0].truckNumber) || bucket.display || truckKey,
+                    start: getEventTime(events[0]),
+                    end: getEventTime(events[events.length - 1]),
+                    events,
+                });
+            }
+        });
     });
 
     return clusters.sort((a, b) => b.end - a.end);

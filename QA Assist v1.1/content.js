@@ -891,6 +891,33 @@ function updateAllVideoPlaybackRates() {
     });
 }
 
+function applyPlaybackCommand(command) {
+    if (!state.enabled) {
+        return false;
+    }
+    const videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+    if (!videos.length) {
+        return false;
+    }
+    let updated = false;
+    videos.forEach((video) => {
+        if (command === "pause") {
+            if (!video.paused) {
+                video.pause();
+            }
+            updated = true;
+        } else if (command === "play") {
+            applyPlaybackSpeed(video);
+            const playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === "function") {
+                playPromise.catch(() => {});
+            }
+            updated = true;
+        }
+    });
+    return updated;
+}
+
 function getLagState(video) {
     if (!video) {
         return null;
@@ -1528,6 +1555,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 siteName: logEntry.siteName || state.siteName || "",
             });
         });
+        return true;
+    }
+
+    if (message.type === "qaAssist:playbackCommand") {
+        const action = typeof message.action === "string" ? message.action : "";
+        if (action !== "pause" && action !== "play") {
+            sendResponse?.({ success: false, reason: "invalid" });
+            return true;
+        }
+        const handled = applyPlaybackCommand(action);
+        sendResponse?.({ success: handled });
         return true;
     }
 
