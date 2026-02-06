@@ -409,6 +409,23 @@ function collectEventDetails(video, options = {}) {
             }
         });
 
+        if (!truckNumber) {
+            const containerScope = oasDetailRoot || document;
+            const nameEntries = Array.from(containerScope.querySelectorAll(".container"))
+                .filter((container) => {
+                    const typeNode = container.querySelector(".type");
+                    return typeNode && typeNode.textContent.trim() === "Name";
+                })
+                .map((container) => {
+                    const dataNode = container.querySelector(".data");
+                    return dataNode ? dataNode.textContent.trim() : "";
+                })
+                .filter(Boolean);
+            if (nameEntries.length) {
+                truckNumber = nameEntries[0];
+            }
+        }
+
         if (!validationType) {
             validationType = extractValidationFromContainer(selectedItem);
         }
