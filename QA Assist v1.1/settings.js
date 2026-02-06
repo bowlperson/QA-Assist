@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loopHoldInput = document.getElementById('loopHold');
     const loopResetContainer = document.getElementById('loopResetContainer');
     const loopHoldContainer = document.getElementById('loopHoldContainer');
+    const oasModeToggle = document.getElementById('oasModeToggle');
     const antiLagToggle = document.getElementById('antiLagToggle');
     const antiLagSeekInput = document.getElementById('antiLagSeek');
     const antiLagSeekContainer = document.getElementById('antiLagSeekContainer');
@@ -285,6 +286,15 @@ document.addEventListener('DOMContentLoaded', () => {
         autoNextLabel.appendChild(autoNext);
         autoNextLabel.append(' Auto Press Next');
 
+        const oasMode = document.createElement('input');
+        oasMode.type = 'checkbox';
+        oasMode.className = 'oasMode';
+        oasMode.checked = rule?.oasModeEnabled || false;
+
+        const oasModeLabel = document.createElement('label');
+        oasModeLabel.appendChild(oasMode);
+        oasModeLabel.append(' OAS Mode');
+
         const removeEye = document.createElement('input');
         removeEye.type = 'checkbox';
         removeEye.className = 'removeEye';
@@ -368,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
             speedLabel,
             keyLabel,
             autoNextLabel,
+            oasModeLabel,
             removeEyeLabel,
             smartSkipLabel,
             keyDelayLabel,
@@ -512,6 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
             autoLoopEnabled: false,
             autoLoopDelay: 8,
             autoLoopHold: 5,
+            oasModeEnabled: false,
             siteRules: {},
             validationVocabulary: DEFAULT_VALIDATION_VOCABULARY,
             validationFilterEnabled: true,
@@ -532,6 +544,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loopToggle.checked = data.autoLoopEnabled;
         loopResetInput.value = data.autoLoopDelay ?? 8;
         loopHoldInput.value = data.autoLoopHold ?? 5;
+        if (oasModeToggle) {
+            oasModeToggle.checked = data.oasModeEnabled ?? false;
+        }
         if (antiLagToggle) {
             antiLagToggle.checked = data.antiLagEnabled ?? false;
         }
@@ -572,6 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const enabled = smartSkipToggle.checked;
         const autoLoopEnabled = loopToggle.checked;
+        const oasModeEnabled = oasModeToggle ? oasModeToggle.checked : false;
         const antiLagEnabled = antiLagToggle ? antiLagToggle.checked : false;
         const rawAntiLag = parseFloat(antiLagSeekInput?.value);
         const antiLagSeekSeconds = Number.isFinite(rawAntiLag)
@@ -614,6 +630,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 speed: div.querySelector('.speed').value,
                 pressKey: div.querySelector('.key').value,
                 autoPressNext: div.querySelector('.autoNext').checked,
+                oasModeEnabled: div.querySelector('.oasMode').checked,
                 removeEyeTracker: div.querySelector('.removeEye').checked,
                 smartSkipEnabled: div.querySelector('.smartSkip').checked,
                 skipDelay: parseFloat(div.querySelector('.skipDelay').value) || 0,
@@ -634,6 +651,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 autoLoopEnabled,
                 autoLoopDelay: parseFloat(loopResetInput.value) || 8,
                 autoLoopHold: parseFloat(loopHoldInput.value) || 5,
+                oasModeEnabled,
                 siteRules,
                 validationVocabulary: sanitizedVocabulary,
                 validationFilterEnabled,
@@ -651,6 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             autoLoopEnabled,
                             autoLoopDelay: parseFloat(loopResetInput.value) || 8,
                             autoLoopHold: parseFloat(loopHoldInput.value) || 5,
+                            oasModeEnabled,
                             siteRules,
                             validationVocabulary: sanitizedVocabulary,
                             validationFilterEnabled,
