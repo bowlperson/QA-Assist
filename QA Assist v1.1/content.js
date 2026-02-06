@@ -401,6 +401,9 @@ function collectEventDetails(video, options = {}) {
             if (label === "name" && !truckNumber) {
                 truckNumber = value;
             }
+            if (label === "equipment" && !truckNumber) {
+                truckNumber = value;
+            }
             if (label === "operator" && !operatorName) {
                 operatorName = value;
             }
