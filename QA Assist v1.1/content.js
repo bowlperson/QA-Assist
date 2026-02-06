@@ -1267,11 +1267,21 @@ function handleSelectionChange() {
 
 function observeSelectionChanges() {
     const observer = new MutationObserver((mutations) => {
-        if (
-            mutations.some((mutation) =>
-                mutation.type === "attributes" && mutation.target.classList.contains("gvEventListItemPadding"),
-            )
-        ) {
+        const hasClassicSelectionChange = mutations.some(
+            (mutation) =>
+                mutation.type === "attributes" &&
+                mutation.target.classList.contains("gvEventListItemPadding"),
+        );
+        const hasOasSelectionChange = state.oasMode
+            ? mutations.some(
+                  (mutation) =>
+                      mutation.type === "attributes" &&
+                      mutation.target.classList.contains("item") &&
+                      mutation.target.closest(".List"),
+              )
+            : false;
+
+        if (hasClassicSelectionChange || hasOasSelectionChange) {
             handleSelectionChange();
         }
     });
