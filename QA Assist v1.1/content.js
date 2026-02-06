@@ -35,6 +35,7 @@ const state = {
     bufferDelay: 4,
     autoLoopDelay: 8,
     autoLoopHold: 5,
+    oasMode: false,
     removeEyeTracker: false,
     antiLagEnabled: false,
     antiLagSeekSeconds: DEFAULT_ANTI_LAG_SEEK,
@@ -757,8 +758,9 @@ function startBufferTimer(signature, eventData) {
         if (state.pendingBufferSignature && state.pendingBufferSignature !== state.lastEventSignature) {
             return;
         }
-        pressKey("ArrowDown");
-        if (state.autoPressNext && eventData?.isLastCell) {
+        const advanceKey = state.oasMode ? "ArrowRight" : "ArrowDown";
+        pressKey(advanceKey);
+        if (!state.oasMode && state.autoPressNext && eventData?.isLastCell) {
             setTimeout(() => pressKey("ArrowRight"), 600);
         }
     }, delay);
@@ -1240,6 +1242,7 @@ function getStatusSnapshot() {
         bufferDelay: state.bufferDelay,
         autoLoopDelay: state.autoLoopDelay,
         autoLoopHold: state.autoLoopHold,
+        oasMode: state.oasMode,
         universalSpeed: state.universalSpeed,
         antiLagEnabled: state.antiLagEnabled,
         antiLagSeekSeconds: state.antiLagSeekSeconds,
@@ -1342,6 +1345,7 @@ function applySettings(data) {
     state.bufferDelay = parsePositiveNumber(data.keyDelay, 4);
     state.autoLoopDelay = parsePositiveNumber(data.autoLoopDelay, 8);
     state.autoLoopHold = parsePositiveNumber(data.autoLoopHold, 5);
+    state.oasMode = normalizeBoolean(data.oasModeEnabled, false);
     state.antiLagEnabled = normalizeBoolean(data.antiLagEnabled, state.antiLagEnabled);
     state.antiLagSeekSeconds = parsePositiveNumber(
         data.antiLagSeekSeconds,
@@ -1409,6 +1413,7 @@ function handleStorageChange(changes, areaName) {
         changes.keyDelay ||
         changes.autoLoopDelay ||
         changes.autoLoopHold ||
+        changes.oasModeEnabled ||
         changes.validationVocabulary ||
         changes.validationFilterEnabled ||
         changes.playbackSpeed ||
@@ -1428,6 +1433,7 @@ function handleStorageChange(changes, areaName) {
                 keyDelay: state.bufferDelay,
                 autoLoopDelay: state.autoLoopDelay,
                 autoLoopHold: state.autoLoopHold,
+                oasModeEnabled: state.oasMode,
                 validationVocabulary: state.validationVocabulary,
                 validationFilterEnabled: state.validationFilterEnabled,
                 removeEyeTracker: state.removeEyeTracker,
@@ -1463,6 +1469,7 @@ function initialize() {
             keyDelay: 4,
             autoLoopDelay: 8,
             autoLoopHold: 5,
+            oasModeEnabled: false,
             validationVocabulary: DEFAULT_VALIDATION_VOCABULARY,
             validationFilterEnabled: true,
             antiLagEnabled: false,
