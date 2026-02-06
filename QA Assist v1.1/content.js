@@ -7,6 +7,11 @@ const REQUIRED_CLASS_SELECTORS = [
     ".gvEventListItemPadding.selected.primarysel",
 ];
 
+const OAS_REQUIRED_SELECTORS = [
+    ".List .content",
+    ".List .item .Thumbnail .image-container",
+];
+
 const DEFAULT_VALIDATION_VOCABULARY = [
     { label: "Blocked", keywords: ["blocked"] },
     { label: "Critical", keywords: ["critical"] },
@@ -35,6 +40,7 @@ const state = {
     bufferDelay: 4,
     autoLoopDelay: 8,
     autoLoopHold: 5,
+    oasMode: false,
     removeEyeTracker: false,
     antiLagEnabled: false,
     antiLagSeekSeconds: DEFAULT_ANTI_LAG_SEEK,
@@ -334,7 +340,59 @@ function collectEventDetails(video, options = {}) {
     let isLastCell = false;
     let validationType = "";
 
-    if (isHideTracking) {
+    if (state.oasMode) {
+        const selectedItem = document.querySelector(".List .item.selected");
+        if (!selectedItem) {
+            if (!suppressWarnings) {
+                console.warn("⚠️ No selected OAS item found for event logging.");
+            }
+            return null;
+        }
+
+        const items = Array.from(document.querySelectorAll(".List .item"));
+        if (items.length) {
+            isLastCell = selectedItem === items[items.length - 1];
+        }
+
+        const eventTypeElement = selectedItem.querySelector("label.field.event_type, label.field-event_type");
+        const timestampElement = selectedItem.querySelector("label.field-created_at, label.field.created_at");
+        const validationElement = selectedItem.querySelector("label.field-reviewed_type, label.field.reviewed_type");
+        const eventIdElement = selectedItem.querySelector("label.field-eventid, label.field-event_id");
+
+        if (eventTypeElement) {
+            eventType = eventTypeElement.textContent.trim();
+        }
+        if (timestampElement) {
+            timestamp = timestampElement.textContent.trim();
+        }
+        if (validationElement) {
+            validationType = validationElement.textContent.trim();
+        }
+        if (eventIdElement) {
+            eventId = eventIdElement.textContent.trim();
+        }
+
+        const fieldContainers = Array.from(document.querySelectorAll(".Fields .fields .container"));
+        fieldContainers.forEach((container) => {
+            const typeNode = container.querySelector(".type");
+            const dataNode = container.querySelector(".data");
+            const label = typeNode ? typeNode.textContent.trim().toLowerCase() : "";
+            const value = dataNode ? dataNode.textContent.trim() : "";
+            if (!value) {
+                return;
+            }
+            if (label === "name" && !truckNumber) {
+                truckNumber = value;
+            }
+            if (label === "operator" && !operatorName) {
+                operatorName = value;
+            }
+        });
+
+        if (!validationType) {
+            validationType = extractValidationFromContainer(selectedItem);
+        }
+    } else if (isHideTracking) {
         const selectedItem = document.querySelector(".item.selected");
 
         if (selectedItem) {
@@ -757,8 +815,9 @@ function startBufferTimer(signature, eventData) {
         if (state.pendingBufferSignature && state.pendingBufferSignature !== state.lastEventSignature) {
             return;
         }
-        pressKey("ArrowDown");
-        if (state.autoPressNext && eventData?.isLastCell) {
+        const advanceKey = state.oasMode ? "ArrowRight" : "ArrowDown";
+        pressKey(advanceKey);
+        if (!state.oasMode && state.autoPressNext && eventData?.isLastCell) {
             setTimeout(() => pressKey("ArrowRight"), 600);
         }
     }, delay);
@@ -849,7 +908,8 @@ function stopAutomationLoop() {
 }
 
 function detectRequiredElements() {
-    const hasElement = REQUIRED_CLASS_SELECTORS.some((selector) => Boolean(document.querySelector(selector)));
+    const selectors = state.oasMode ? OAS_REQUIRED_SELECTORS : REQUIRED_CLASS_SELECTORS;
+    const hasElement = selectors.some((selector) => Boolean(document.querySelector(selector)));
     if (hasElement !== state.hasRequiredElements) {
         state.hasRequiredElements = hasElement;
         updateMode();
@@ -889,6 +949,33 @@ function updateAllVideoPlaybackRates() {
             console.warn("Unable to update playback speed", error);
         }
     });
+}
+
+function applyPlaybackCommand(command) {
+    if (!state.enabled) {
+        return false;
+    }
+    const videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+    if (!videos.length) {
+        return false;
+    }
+    let updated = false;
+    videos.forEach((video) => {
+        if (command === "pause") {
+            if (!video.paused) {
+                video.pause();
+            }
+            updated = true;
+        } else if (command === "play") {
+            applyPlaybackSpeed(video);
+            const playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === "function") {
+                playPromise.catch(() => {});
+            }
+            updated = true;
+        }
+    });
+    return updated;
 }
 
 function getLagState(video) {
@@ -1213,6 +1300,7 @@ function getStatusSnapshot() {
         bufferDelay: state.bufferDelay,
         autoLoopDelay: state.autoLoopDelay,
         autoLoopHold: state.autoLoopHold,
+        oasMode: state.oasMode,
         universalSpeed: state.universalSpeed,
         antiLagEnabled: state.antiLagEnabled,
         antiLagSeekSeconds: state.antiLagSeekSeconds,
@@ -1315,6 +1403,7 @@ function applySettings(data) {
     state.bufferDelay = parsePositiveNumber(data.keyDelay, 4);
     state.autoLoopDelay = parsePositiveNumber(data.autoLoopDelay, 8);
     state.autoLoopHold = parsePositiveNumber(data.autoLoopHold, 5);
+    state.oasMode = normalizeBoolean(data.oasModeEnabled, false);
     state.antiLagEnabled = normalizeBoolean(data.antiLagEnabled, state.antiLagEnabled);
     state.antiLagSeekSeconds = parsePositiveNumber(
         data.antiLagSeekSeconds,
@@ -1322,6 +1411,7 @@ function applySettings(data) {
     );
     applyValidationPreferences(data.validationVocabulary || DEFAULT_VALIDATION_VOCABULARY, data.validationFilterEnabled);
 
+    detectRequiredElements();
     setAutoMode(data.autoModeEnabled);
     setAutoPressNext(data.autoPressNext);
     setAutoLoop(data.autoLoopEnabled);
@@ -1382,6 +1472,7 @@ function handleStorageChange(changes, areaName) {
         changes.keyDelay ||
         changes.autoLoopDelay ||
         changes.autoLoopHold ||
+        changes.oasModeEnabled ||
         changes.validationVocabulary ||
         changes.validationFilterEnabled ||
         changes.playbackSpeed ||
@@ -1401,6 +1492,7 @@ function handleStorageChange(changes, areaName) {
                 keyDelay: state.bufferDelay,
                 autoLoopDelay: state.autoLoopDelay,
                 autoLoopHold: state.autoLoopHold,
+                oasModeEnabled: state.oasMode,
                 validationVocabulary: state.validationVocabulary,
                 validationFilterEnabled: state.validationFilterEnabled,
                 removeEyeTracker: state.removeEyeTracker,
@@ -1436,6 +1528,7 @@ function initialize() {
             keyDelay: 4,
             autoLoopDelay: 8,
             autoLoopHold: 5,
+            oasModeEnabled: false,
             validationVocabulary: DEFAULT_VALIDATION_VOCABULARY,
             validationFilterEnabled: true,
             antiLagEnabled: false,
@@ -1528,6 +1621,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 siteName: logEntry.siteName || state.siteName || "",
             });
         });
+        return true;
+    }
+
+    if (message.type === "qaAssist:playbackCommand") {
+        const action = typeof message.action === "string" ? message.action : "";
+        if (action !== "pause" && action !== "play") {
+            sendResponse?.({ success: false, reason: "invalid" });
+            return true;
+        }
+        const handled = applyPlaybackCommand(action);
+        sendResponse?.({ success: handled });
         return true;
     }
 
