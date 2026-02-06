@@ -339,6 +339,7 @@ function collectEventDetails(video, options = {}) {
     const pageUrl = getPageUrl();
     let isLastCell = false;
     let validationType = "";
+    let oasDetailRoot = null;
 
     if (state.oasMode) {
         const selectedItem = document.querySelector(".List .item.selected");
@@ -349,15 +350,26 @@ function collectEventDetails(video, options = {}) {
             return null;
         }
 
-        const items = Array.from(document.querySelectorAll(".List .item"));
+        const listRoot = selectedItem.closest(".List");
+        const items = Array.from(listRoot ? listRoot.querySelectorAll(".item") : []);
         if (items.length) {
             isLastCell = selectedItem === items[items.length - 1];
         }
 
-        const eventTypeElement = selectedItem.querySelector("label.field.event_type, label.field-event_type");
-        const timestampElement = selectedItem.querySelector("label.field-created_at, label.field.created_at");
-        const validationElement = selectedItem.querySelector("label.field-reviewed_type, label.field.reviewed_type");
-        const eventIdElement = selectedItem.querySelector("label.field-eventid, label.field-event_id");
+        oasDetailRoot = listRoot?.parentElement || selectedItem.parentElement || null;
+        const lookupRoot = oasDetailRoot || selectedItem;
+        const eventTypeElement =
+            selectedItem.querySelector("label.field.event_type, label.field-event_type") ||
+            lookupRoot.querySelector("label.field.event_type, label.field-event_type");
+        const timestampElement =
+            selectedItem.querySelector("label.field-created_at, label.field.created_at") ||
+            lookupRoot.querySelector("label.field-created_at, label.field.created_at");
+        const validationElement =
+            selectedItem.querySelector("label.field-reviewed_type, label.field.reviewed_type") ||
+            lookupRoot.querySelector("label.field-reviewed_type, label.field.reviewed_type");
+        const eventIdElement =
+            selectedItem.querySelector("label.field-eventid, label.field-event_id") ||
+            lookupRoot.querySelector("label.field-eventid, label.field-event_id");
 
         if (eventTypeElement) {
             eventType = eventTypeElement.textContent.trim();
@@ -372,7 +384,12 @@ function collectEventDetails(video, options = {}) {
             eventId = eventIdElement.textContent.trim();
         }
 
-        const fieldContainers = Array.from(document.querySelectorAll(".Fields .fields .container"));
+        const fieldsRoot =
+            selectedItem.querySelector(".Fields") ||
+            (oasDetailRoot ? oasDetailRoot.querySelector(".Fields") : null);
+        const fieldContainers = fieldsRoot
+            ? Array.from(fieldsRoot.querySelectorAll(".fields .container"))
+            : [];
         fieldContainers.forEach((container) => {
             const typeNode = container.querySelector(".type");
             const dataNode = container.querySelector(".data");
@@ -521,10 +538,11 @@ function collectEventDetails(video, options = {}) {
     }
 
     if (!validationType) {
-        const detailsPanel =
-            document.querySelector(".gvDetailPanel, .gvEventDetails, .event-details, .details-panel") ||
-            selectedRow?.parentElement ||
-            null;
+        const detailsPanel = state.oasMode
+            ? oasDetailRoot
+            : document.querySelector(".gvDetailPanel, .gvEventDetails, .event-details, .details-panel") ||
+              selectedRow?.parentElement ||
+              null;
         validationType = extractValidationFromContainer(detailsPanel) || validationType;
     }
 
