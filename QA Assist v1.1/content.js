@@ -323,6 +323,23 @@ function removeEyeTrackerElements() {
     });
 }
 
+function findOasEquipmentName(root = document) {
+    const sections = Array.from(root.querySelectorAll(".Accordion > div"));
+    const section = sections.find((entry) => {
+        const headerText = entry.querySelector(".header .text")?.textContent?.trim() || "";
+        return headerText.includes("Equipment Detail");
+    });
+
+    if (!section) {
+        return "";
+    }
+
+    const row = Array.from(section.querySelectorAll(".container")).find(
+        (container) => container.querySelector(".type")?.textContent?.trim() === "Name",
+    );
+    return row?.querySelector(".data")?.textContent?.trim() || "";
+}
+
 function collectEventDetails(video, options = {}) {
     const suppressWarnings = Boolean(options && options.suppressWarnings);
     const allRows = document.querySelectorAll(".gvEventListItemPadding");
@@ -410,20 +427,7 @@ function collectEventDetails(video, options = {}) {
         });
 
         if (!truckNumber) {
-            const containerScope = oasDetailRoot || document;
-            const nameEntries = Array.from(containerScope.querySelectorAll(".container"))
-                .filter((container) => {
-                    const typeNode = container.querySelector(".type");
-                    return typeNode && typeNode.textContent.trim() === "Name";
-                })
-                .map((container) => {
-                    const dataNode = container.querySelector(".data");
-                    return dataNode ? dataNode.textContent.trim() : "";
-                })
-                .filter(Boolean);
-            if (nameEntries.length) {
-                truckNumber = nameEntries[0];
-            }
+            truckNumber = findOasEquipmentName(oasDetailRoot || document);
         }
 
         if (!validationType) {
