@@ -17,7 +17,7 @@
     "content_scripts": [
         {
             "matches": ["*://*/*"],
-            "js": ["content.js"]
+            "js": ["event-log-db.js", "content.js"]
         }
     ],
     "action": {

@@ -44,6 +44,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmCancelButton = document.getElementById("confirmCancel");
     const closeConfirmButton = document.getElementById("closeConfirmModal");
     const logToast = document.getElementById("logToast");
+    const editLogModal = document.getElementById("editLogModal");
+    const closeEditLogModalButton = document.getElementById("closeEditLogModal");
+    const cancelEditLogButton = document.getElementById("cancelEditLog");
+    const saveEditLogButton = document.getElementById("saveEditLog");
+    const editTruckNumberInput = document.getElementById("editTruckNumber");
+    const editEventTypeInput = document.getElementById("editEventType");
+    const editValidationTypeInput = document.getElementById("editValidationType");
+    const editTimestampInput = document.getElementById("editTimestamp");
+    const editSiteNameInput = document.getElementById("editSiteName");
 
     const DEFAULT_VALIDATION_VOCABULARY = [
         { label: "Blocked", keywords: ["blocked"] },
@@ -64,6 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let activeBookmarkId = null;
     let confirmAction = null;
     let toastTimeout = null;
+    let activeEditLogId = null;
 
     function cloneDefaultVocabulary() {
         return DEFAULT_VALIDATION_VOCABULARY.map((entry) => ({
@@ -547,7 +557,7 @@ document.addEventListener("DOMContentLoaded", () => {
         shaped.callHistory = Array.isArray(shaped.callHistory) ? shaped.callHistory : [];
         shaped.eventKey = createEventKey(shaped);
         shaped.id = shaped.id || generateId();
-        shaped.operatorName = String(shaped.operatorName || shaped.operator || "").trim();
+        shaped.operatorName = "";
 
         const rawCandidates = [
             shaped.validationTypeRaw,
@@ -585,8 +595,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function deduplicateLogs(allLogs) {
-        const seen = new Set();
-        const deduped = [];
+        const mergedByDuplicateKey = new Map();
 
         (allLogs || []).forEach((log) => {
             const shaped = ensureLogShape(log);
@@ -594,23 +603,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            const key = shaped.eventKey || createEventKey(shaped);
-            if (key && seen.has(key)) {
+            const duplicateKey = EventLogDB.buildDuplicateKey(shaped);
+            if (!duplicateKey) {
+                mergedByDuplicateKey.set(shaped.id, shaped);
                 return;
             }
 
-            if (key) {
-                seen.add(key);
-            }
-
-            deduped.push(shaped);
+            const previous = mergedByDuplicateKey.get(duplicateKey);
+            mergedByDuplicateKey.set(duplicateKey, previous ? { ...previous, ...shaped, id: previous.id } : shaped);
         });
 
-        return deduped;
+        return Array.from(mergedByDuplicateKey.values());
     }
 
     function saveLogs() {
-        chrome.storage.local.set({ eventLogs: logs });
+        EventLogDB.replaceAll(logs).catch((error) => {
+            console.warn("Failed to save logs", error);
+        });
     }
 
     function formatDate(date) {
@@ -631,6 +640,86 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function getLogById(id) {
         return logs.find((log) => log.id === id);
+    }
+
+    function confirmDeleteLog(logId) {
+        const log = getLogById(logId);
+        if (!log) {
+            return;
+        }
+
+        openConfirmModal("Delete this event log? This cannot be undone.", async () => {
+            logs = logs.filter((entry) => entry.id !== logId);
+            await EventLogDB.remove(logId);
+            updateDisplays(logs);
+            showToast("Event deleted");
+        });
+    }
+
+    function closeEditLogModal() {
+        activeEditLogId = null;
+        if (editLogModal) {
+            editLogModal.classList.remove("show");
+        }
+    }
+
+    function openEditLogModal(logId) {
+        const log = getLogById(logId);
+        if (!log || !editLogModal) {
+            return;
+        }
+
+        activeEditLogId = logId;
+        if (editTruckNumberInput) {
+            editTruckNumberInput.value = safeText(log.truckNumber);
+        }
+        if (editEventTypeInput) {
+            editEventTypeInput.value = safeText(log.eventType);
+        }
+        if (editValidationTypeInput) {
+            editValidationTypeInput.value = safeText(getRawValidation(log));
+        }
+        if (editTimestampInput) {
+            editTimestampInput.value = safeText(log.timestamp);
+        }
+        if (editSiteNameInput) {
+            editSiteNameInput.value = safeText(log.siteName);
+        }
+
+        editLogModal.classList.add("show");
+    }
+
+    async function saveEditedLog() {
+        if (!activeEditLogId) {
+            closeEditLogModal();
+            return;
+        }
+
+        const target = getLogById(activeEditLogId);
+        if (!target) {
+            closeEditLogModal();
+            return;
+        }
+
+        target.truckNumber = safeText(editTruckNumberInput?.value);
+        target.eventType = safeText(editEventTypeInput?.value);
+        target.timestamp = safeText(editTimestampInput?.value);
+        target.siteName = safeText(editSiteNameInput?.value);
+
+        const validationValue = safeText(editValidationTypeInput?.value);
+        target.validationType = validationValue;
+        target.validationTypeRaw = validationValue;
+        target.validationTypeDetected = validationValue;
+        target.detectedValidation = validationValue;
+        if (!safeText(target.callValidationType)) {
+            target.callValidationType = validationValue;
+        }
+
+        await EventLogDB.upsert(target);
+        logs = deduplicateLogs(await EventLogDB.getAll());
+        updateDisplays(logs);
+        showToast("Event updated");
+        closeEditLogModal();
     }
 
     function createBookmarkButton(log) {
@@ -666,23 +755,22 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function createOperatorCell(name) {
+    function createManageCell(log) {
         const cell = document.createElement("td");
-        const text = String(name || "").trim();
+        cell.className = "actions-cell";
 
-        if (!text) {
-            cell.textContent = "—";
-            return cell;
-        }
+        const editButton = document.createElement("button");
+        editButton.className = "secondary";
+        editButton.textContent = "Edit";
+        editButton.addEventListener("click", () => openEditLogModal(log.id));
 
-        const truncated = text.length > 5 ? `${text.slice(0, 5)}…` : text;
-        const chip = document.createElement("span");
-        chip.className = "name-chip";
-        chip.dataset.tooltip = text;
-        chip.textContent = truncated;
-        chip.addEventListener("click", () => copyTextWithToast(text, "Operator copied"));
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "danger";
+        deleteButton.textContent = "Delete";
+        deleteButton.addEventListener("click", () => confirmDeleteLog(log.id));
 
-        cell.appendChild(chip);
+        cell.appendChild(editButton);
+        cell.appendChild(deleteButton);
         return cell;
     }
 
@@ -787,7 +875,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const siteCell = createSiteCell(log);
 
-        const operatorCell = createOperatorCell(log.operatorName);
+        const manageCell = createManageCell(log);
 
         const notesCell = document.createElement("td");
         notesCell.textContent = log.comment || "";
@@ -803,7 +891,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.appendChild(truckCell);
         row.appendChild(timestampCell);
         row.appendChild(siteCell);
-        row.appendChild(operatorCell);
+        row.appendChild(manageCell);
         row.appendChild(notesCell);
         row.appendChild(actionsCell);
 
@@ -815,7 +903,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderLogRow(log) {
         const row = document.createElement("tr");
 
-        const operatorCell = createOperatorCell(log.operatorName);
+        const manageCell = createManageCell(log);
 
         const eventTypeCell = document.createElement("td");
         const eventLabel = createToneLabel(log.eventType, "event");
@@ -847,7 +935,7 @@ document.addEventListener("DOMContentLoaded", () => {
         actionsCell.appendChild(createCallButton(log));
         actionsCell.appendChild(createOpenButton(log));
 
-        row.appendChild(operatorCell);
+        row.appendChild(manageCell);
         row.appendChild(eventTypeCell);
         row.appendChild(validationCell);
         row.appendChild(truckCell);
@@ -875,7 +963,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 log.pageUrl,
                 log.siteName,
                 log.eventId,
-                log.operatorName,
                 getRawValidation(log),
             ]
                 .filter(Boolean)
@@ -1433,6 +1520,32 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    if (saveEditLogButton) {
+        saveEditLogButton.addEventListener("click", () => {
+            saveEditedLog();
+        });
+    }
+
+    if (cancelEditLogButton) {
+        cancelEditLogButton.addEventListener("click", () => {
+            closeEditLogModal();
+        });
+    }
+
+    if (closeEditLogModalButton) {
+        closeEditLogModalButton.addEventListener("click", () => {
+            closeEditLogModal();
+        });
+    }
+
+    if (editLogModal) {
+        editLogModal.addEventListener("click", (event) => {
+            if (event.target === editLogModal) {
+                closeEditLogModal();
+            }
+        });
+    }
+
     window.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") {
             return;
@@ -1445,6 +1558,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (confirmModal && confirmModal.classList.contains("show")) {
             closeConfirmModal();
+            return;
+        }
+
+        if (editLogModal && editLogModal.classList.contains("show")) {
+            closeEditLogModal();
             return;
         }
 
@@ -1476,15 +1594,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    chrome.storage.local.get({ eventLogs: [], pendingInstaLog: null }, (data) => {
-        const loadedLogs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
-        logs = deduplicateLogs(loadedLogs);
-        saveLogs();
-        updateDisplays(logs);
-        refreshValidationPreferences(validationVocabulary, validationFilterEnabled);
-        if (data.pendingInstaLog) {
-            handlePendingInstaLog(data.pendingInstaLog);
-            chrome.storage.local.remove("pendingInstaLog");
-        }
-    });
+    EventLogDB.getAll()
+        .then((loadedLogs) => {
+            logs = deduplicateLogs(loadedLogs);
+            updateDisplays(logs);
+            refreshValidationPreferences(validationVocabulary, validationFilterEnabled);
+            chrome.storage.local.get({ pendingInstaLog: null }, (data) => {
+                if (data.pendingInstaLog) {
+                    handlePendingInstaLog(data.pendingInstaLog);
+                    chrome.storage.local.remove("pendingInstaLog");
+                }
+            });
+        })
+        .catch((error) => {
+            console.warn("Unable to load event logs", error);
+            updateDisplays([]);
+        });
 });

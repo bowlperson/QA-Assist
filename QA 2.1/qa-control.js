@@ -71,12 +71,10 @@ function loadControlData(options = {}) {
         refreshButton.classList.add("spinning");
     }
 
-    chrome.storage.local.get("eventLogs", (data) => {
-        const storageError = chrome.runtime.lastError || null;
-        const rawLogs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
-        const logs = rawLogs
+    EventLogDB.getAll().then((rawLogs) => {
+        const logs = deduplicateForAnalytics(rawLogs
             .map((log) => normalizeLog(log))
-            .filter(Boolean)
+            .filter(Boolean))
             .sort((a, b) => {
                 const timeA = getEventTime(a);
                 const timeB = getEventTime(b);
@@ -97,10 +95,10 @@ function loadControlData(options = {}) {
         renderSiteStats(logs, siteStatsContainer, siteStatsSummary);
         const watchLists = buildFatigueWatchLists(logs);
         renderWatchList(watchListOneHour, watchLists.withinOneHour, {
-            emptyMessage: "No operators have three fatigue events within one hour.",
+            emptyMessage: "No trucks have three fatigue events within one hour.",
         });
         renderWatchList(watchListTwoHour, watchLists.withinTwoHours, {
-            emptyMessage: "No operators have three fatigue events within two hours.",
+            emptyMessage: "No trucks have three fatigue events within two hours.",
         });
 
         const spotlights = buildSpotlights(logs);
@@ -125,7 +123,7 @@ function loadControlData(options = {}) {
         updateFluctuationExportButton(fluctuationExportButton, currentFluctuationClusters);
 
         if (announce) {
-            showControlToast(storageError ? "Unable to refresh control center" : "Control center refreshed");
+            showControlToast("Control center refreshed");
         }
 
         if (showLoading && refreshButton) {
@@ -133,8 +131,14 @@ function loadControlData(options = {}) {
             refreshButton.classList.remove("spinning");
         }
 
-        if (storageError) {
-            console.warn("Failed to load control data", storageError);
+    }).catch((error) => {
+        if (showLoading && refreshButton) {
+            refreshButton.disabled = false;
+            refreshButton.classList.remove("spinning");
+        }
+        console.warn("Failed to load control data", error);
+        if (announce) {
+            showControlToast("Unable to refresh control center");
         }
     });
 }
@@ -171,7 +175,7 @@ function normalizeLog(log) {
     normalized.eventType = safeText(log.eventType);
     normalized.validationType = deriveValidation(log);
     normalized.callValidationType = safeText(log.callValidationType) || normalized.validationType;
-    normalized.operatorName = safeText(log.operatorName || log.operator);
+    normalized.operatorName = "";
     normalized.truckNumber = safeText(log.truckNumber);
     normalized.siteName = safeText(log.siteName);
     normalized.siteMatchValue = safeText(log.siteMatchValue);
@@ -188,6 +192,24 @@ function normalizeLog(log) {
     normalized.timestampMs = Number.isFinite(timestampMs) ? timestampMs : NaN;
 
     return normalized;
+}
+
+function deduplicateForAnalytics(logs) {
+    const deduped = new Map();
+
+    let fallbackIndex = 0;
+    (Array.isArray(logs) ? logs : []).forEach((log) => {
+        const key = EventLogDB.buildDuplicateKey(log);
+        if (!key) {
+            deduped.set(`${safeText(log.id)}|${safeText(log.createdAt)}|${fallbackIndex}`, log);
+            fallbackIndex += 1;
+            return;
+        }
+
+        deduped.set(key, log);
+    });
+
+    return Array.from(deduped.values());
 }
 
 function safeText(value) {
@@ -452,12 +474,10 @@ function buildFatigueWatchLists(logs) {
 }
 
 function buildIdentity(log) {
-    const operator = safeText(log.operatorName) || "Unknown operator";
     const truck = safeText(log.truckNumber) || "Unknown truck";
     const site = safeText(log.siteName) || getHost(log.pageUrl) || "Unknown site";
     return {
-        key: `${operator.toLowerCase()}|${truck.toLowerCase()}|${site.toLowerCase()}`,
-        operator,
+        key: `${truck.toLowerCase()}|${site.toLowerCase()}`,
         truck,
         site,
     };
@@ -515,8 +535,7 @@ function renderWatchList(container, entries, { emptyMessage }) {
             summary.innerHTML = `
                 <div class="watch-summary">
                     <div>
-                        <span class="watch-name">${entry.operator}</span>
-                        <span class="watch-meta">${entry.truck}</span>
+                        <span class="watch-name">${entry.truck}</span>
                     </div>
                     <div class="watch-meta">${entry.site}</div>
                 </div>
@@ -644,7 +663,6 @@ function buildSpotlights(logs) {
         );
         if (eventWindow && eventWindow.total >= 3) {
             eventTypeEntries.push({
-                operator: entry.operator,
                 truck: entry.truck,
                 site: entry.site,
                 total: eventWindow.total,
@@ -663,7 +681,6 @@ function buildSpotlights(logs) {
         );
         if (validationWindow && validationWindow.total >= 3) {
             validationEntries.push({
-                operator: entry.operator,
                 truck: entry.truck,
                 site: entry.site,
                 total: validationWindow.total,
@@ -756,14 +773,10 @@ function renderSpotlightList(container, entries, { emptyMessage, tone }) {
         const nameDiv = document.createElement("div");
         nameDiv.className = "spotlight-name";
         nameDiv.textContent = entry.truck;
-        const operatorDiv = document.createElement("div");
-        operatorDiv.className = "spotlight-meta";
-        operatorDiv.textContent = entry.operator;
         const siteDiv = document.createElement("div");
         siteDiv.className = "spotlight-meta";
         siteDiv.textContent = entry.site;
         identity.appendChild(nameDiv);
-        identity.appendChild(operatorDiv);
         identity.appendChild(siteDiv);
 
         const headingAside = document.createElement("div");
@@ -1221,7 +1234,7 @@ function exportFluctuationsCsv(clusters) {
     }
 
     const rows = [
-        ["Truck", "Window Start", "Window End", "Event Timestamp", "Event Type", "Validation", "Site", "Operator"],
+        ["Truck", "Window Start", "Window End", "Event Timestamp", "Event Type", "Validation", "Site"],
     ];
 
     clusters.forEach((cluster) => {
@@ -1240,7 +1253,6 @@ function exportFluctuationsCsv(clusters) {
                 safeText(event.eventType),
                 safeText(event.callValidationType || event.validationType),
                 safeText(event.siteName) || getHost(event.pageUrl) || "",
-                safeText(event.operatorName || event.operator),
             ]);
         });
     });
