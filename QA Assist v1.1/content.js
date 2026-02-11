@@ -323,18 +323,8 @@ function removeEyeTrackerElements() {
     });
 }
 
-function findOasEquipmentName(root = document) {
-    const sections = Array.from(root.querySelectorAll(".Accordion > div"));
-    const section = sections.find((entry) => {
-        const headerText = entry.querySelector(".header .text")?.textContent?.trim() || "";
-        return headerText.includes("Equipment Detail");
-    });
-
-    if (!section) {
-        return "";
-    }
-
-    const row = Array.from(section.querySelectorAll(".container")).find(
+function findOasTruckNameFromContainers(root = document) {
+    const row = Array.from(root.querySelectorAll(".container")).find(
         (container) => container.querySelector(".type")?.textContent?.trim() === "Name",
     );
     return row?.querySelector(".data")?.textContent?.trim() || "";
@@ -426,8 +416,9 @@ function collectEventDetails(video, options = {}) {
             }
         });
 
-        if (!truckNumber) {
-            truckNumber = findOasEquipmentName(oasDetailRoot || document);
+        const containerTruckNumber = findOasTruckNameFromContainers(document);
+        if (containerTruckNumber) {
+            truckNumber = containerTruckNumber;
         }
 
         if (!validationType) {
