@@ -1,8 +1,8 @@
 if (typeof importScripts === "function") {
     try {
-        importScripts("enabled-state-controller.js");
+        importScripts("enabled-state-controller.js", "event-log-db.js");
     } catch (error) {
-        console.error("Failed to load enabled state controller", error);
+        console.error("Failed to load background dependencies", error);
     }
 }
 
@@ -134,6 +134,23 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message || typeof message !== "object") {
         return;
+    }
+
+    if (message.type === "eventLogUpsert") {
+        if (typeof EventLogDB === "undefined" || typeof EventLogDB.upsert !== "function") {
+            sendResponse({ success: false, error: "EventLogDB unavailable in background" });
+            return false;
+        }
+
+        EventLogDB.upsert(message.event || null)
+            .then((record) => {
+                sendResponse({ success: true, record: record || null });
+            })
+            .catch((error) => {
+                console.error("Failed to upsert event log", error);
+                sendResponse({ success: false, error: error?.message || "Failed to upsert event log" });
+            });
+        return true;
     }
 
     if (message.type === "getEnabledState") {

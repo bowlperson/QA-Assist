@@ -676,7 +676,7 @@ function registerEventLog(eventData, callback) {
                 ? findValidationLabel(callValidation || rawValidation)
                 : callValidation;
 
-            const enrichedEvent = {
+            return {
                 ...eventData,
                 operatorName: "",
                 validationTypeRaw: rawValidation,
@@ -686,14 +686,39 @@ function registerEventLog(eventData, callback) {
                 callValidationType: normalizedValidation || callValidation || rawValidation,
                 siteName,
                 siteMatchValue,
-                eventDate: EventLogDB.deriveEventDate(eventData),
+                eventDate: (typeof EventLogDB !== "undefined" && EventLogDB.deriveEventDate)
+                    ? EventLogDB.deriveEventDate(eventData)
+                    : "",
                 createdAt: new Date().toISOString(),
                 callHistory: [],
                 eventKey,
                 id: generateLogId(),
             };
+        })
+        .then((enrichedEvent) => {
+            if (!chrome?.runtime?.sendMessage) {
+                if (typeof EventLogDB !== "undefined" && EventLogDB.upsert) {
+                    return EventLogDB.upsert(enrichedEvent);
+                }
+                throw new Error("No event logging transport available");
+            }
 
-            return EventLogDB.upsert(enrichedEvent);
+            return new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({ type: "eventLogUpsert", event: enrichedEvent }, (response) => {
+                    const runtimeError = chrome.runtime.lastError;
+                    if (runtimeError) {
+                        reject(new Error(runtimeError.message || "Failed to send event log message"));
+                        return;
+                    }
+
+                    if (!response?.success) {
+                        reject(new Error(response?.error || "Background rejected event log upsert"));
+                        return;
+                    }
+
+                    resolve(response.record || enrichedEvent);
+                });
+            });
         })
         .then((storedLog) => {
             if (typeof callback === "function") {
