@@ -190,12 +190,50 @@
                     return;
                 }
 
-                for (const log of legacyLogs) {
-                    try {
-                        await upsert(log);
-                    } catch (error) {
-                        console.warn("Failed to migrate legacy event log", error);
-                    }
+                try {
+                    await runTransaction("readwrite", (store) => {
+                        legacyLogs.forEach((log) => {
+                            try {
+                                const normalized = normalizeLog(log);
+                                const duplicateKey = normalized.duplicateKey;
+                                if (!duplicateKey) {
+                                    store.put(normalized);
+                                    return;
+                                }
+
+                                const duplicateIndex = store.index("byDuplicateKey");
+                                const getRequest = duplicateIndex.get(duplicateKey);
+                                getRequest.onsuccess = () => {
+                                    const existing = getRequest.result;
+                                    if (!existing) {
+                                        store.put(normalized);
+                                        return;
+                                    }
+
+                                    const merged = {
+                                        ...existing,
+                                        ...normalized,
+                                        id: existing.id,
+                                        createdAt: existing.createdAt || normalized.createdAt,
+                                        createdAtMs: Number.isFinite(existing.createdAtMs)
+                                            ? existing.createdAtMs
+                                            : normalized.createdAtMs,
+                                        callHistory: Array.isArray(existing.callHistory)
+                                            ? existing.callHistory
+                                            : normalized.callHistory,
+                                        bookmarked: Boolean(existing.bookmarked),
+                                        comment: safeText(existing.comment),
+                                    };
+
+                                    store.put(normalizeLog(merged));
+                                };
+                            } catch (error) {
+                                console.warn("Failed to migrate legacy event log row", error);
+                            }
+                        });
+                    });
+                } catch (error) {
+                    console.warn("Failed to migrate legacy event logs", error);
                 }
 
                 chrome.storage.local.remove("eventLogs", () => {
@@ -212,37 +250,47 @@
 
         await migrateFromStorage();
 
-        return runTransaction("readwrite", (store) => {
-            const index = store.index("byDuplicateKey");
-            const getExistingRequest = normalized.duplicateKey ? index.get(normalized.duplicateKey) : null;
+        const db = await openDb();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, "readwrite");
+            const store = tx.objectStore(STORE_NAME);
 
-            if (!getExistingRequest) {
-                store.put(normalized);
-                return normalized;
-            }
-
-            getExistingRequest.onsuccess = () => {
-                const existing = getExistingRequest.result;
-                if (!existing) {
-                    store.put(normalized);
-                    return;
-                }
-
-                const merged = {
-                    ...existing,
-                    ...normalized,
-                    id: existing.id,
-                    createdAt: existing.createdAt || normalized.createdAt,
-                    createdAtMs: Number.isFinite(existing.createdAtMs) ? existing.createdAtMs : normalized.createdAtMs,
-                    callHistory: Array.isArray(existing.callHistory) ? existing.callHistory : normalized.callHistory,
-                    bookmarked: Boolean(existing.bookmarked),
-                    comment: safeText(existing.comment),
-                };
-
-                store.put(normalizeLog(merged));
+            const finalizePut = (record) => {
+                const putRequest = store.put(normalizeLog(record));
+                putRequest.onsuccess = () => resolve(record);
+                putRequest.onerror = () => reject(putRequest.error || new Error("Failed to upsert event log"));
             };
 
-            return normalized;
+            if (!normalized.duplicateKey) {
+                finalizePut(normalized);
+            } else {
+                const duplicateIndex = store.index("byDuplicateKey");
+                const existingRequest = duplicateIndex.get(normalized.duplicateKey);
+                existingRequest.onsuccess = () => {
+                    const existing = existingRequest.result;
+                    if (!existing) {
+                        finalizePut(normalized);
+                        return;
+                    }
+
+                    const merged = {
+                        ...existing,
+                        ...normalized,
+                        id: existing.id,
+                        createdAt: existing.createdAt || normalized.createdAt,
+                        createdAtMs: Number.isFinite(existing.createdAtMs) ? existing.createdAtMs : normalized.createdAtMs,
+                        callHistory: Array.isArray(existing.callHistory) ? existing.callHistory : normalized.callHistory,
+                        bookmarked: Boolean(existing.bookmarked),
+                        comment: safeText(existing.comment),
+                    };
+
+                    finalizePut(merged);
+                };
+                existingRequest.onerror = () => reject(existingRequest.error || new Error("Failed to read duplicate"));
+            }
+
+            tx.onerror = () => reject(tx.error || new Error("IndexedDB transaction failed"));
+            tx.onabort = () => reject(tx.error || new Error("IndexedDB transaction aborted"));
         });
     }
 
