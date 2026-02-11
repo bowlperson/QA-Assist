@@ -98,7 +98,12 @@
         record.createdAtMs = Number.isFinite(createdAtMs) ? createdAtMs : Date.now();
         record.timestampMs = Number.isFinite(timestampMs) ? timestampMs : record.createdAtMs;
 
-        record.duplicateKey = buildDuplicateKey(record);
+        const duplicateKey = buildDuplicateKey(record);
+        if (duplicateKey) {
+            record.duplicateKey = duplicateKey;
+        } else if (Object.prototype.hasOwnProperty.call(record, "duplicateKey")) {
+            delete record.duplicateKey;
+        }
 
         if (!Array.isArray(record.callHistory)) {
             record.callHistory = [];
