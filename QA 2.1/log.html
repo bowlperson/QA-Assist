@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist · Event Log</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page">
+    <div class="page-shell">
+        <header class="page-header">
+            <div class="page-title">
+                <h1>Event log</h1>
+                <p>Review captured events, manage bookmarks, and prepare call-ready validation notes.</p>
+            </div>
+            <nav class="page-nav">
+                <a class="page-nav-link active" href="log.html">Event Log</a>
+                <a class="page-nav-link" href="settings.html">Settings</a>
+                <a class="page-nav-link" href="site-info.html">Site Info</a>
+                <a class="page-nav-link" href="qa-control.html">QA Control</a>
+            </nav>
+        </header>
+
+        <section class="page-card table-card" id="bookmarkSection">
+            <div class="card-header">
+                <h2>Bookmarks</h2>
+                <span id="bookmarkCount" class="badge subtle">0 items</span>
+            </div>
+            <p class="helper-text">Bookmarked clips stay pinned for quick follow up and call prep.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Event</th>
+                        <th>Validation</th>
+                        <th>Truck</th>
+                        <th>Timestamp</th>
+                        <th>Site</th>
+                        <th>Operator</th>
+                        <th>Notes</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="bookmarkBody"></tbody>
+            </table>
+        </section>
+
+        <section class="page-card table-card">
+            <div class="card-header">
+                <h2>Recent events</h2>
+                <span id="eventCount" class="badge subtle">0 items</span>
+            </div>
+            <div class="controls">
+                <input type="text" id="filterInput" placeholder="Search by event, validation, truck, timestamp, site, or URL...">
+                <button id="exportCSV" class="secondary">Export CSV</button>
+                <button id="clearLogs" class="ghost">Clear Logs</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Operator</th>
+                        <th>Event</th>
+                        <th>Validation</th>
+                        <th>Truck</th>
+                        <th>Timestamp</th>
+                        <th>Site</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="logTableBody"></tbody>
+            </table>
+        </section>
+    </div>
+
+    <div class="modal" id="callModal" aria-hidden="true">
+        <div class="modal-content call-modal" role="dialog" aria-modal="true" aria-labelledby="callModalTitle">
+            <button class="close-modal" id="closeCallModal" title="Close">×</button>
+            <div class="call-modal-header">
+                <div>
+                    <h2 id="callModalTitle">Call validation</h2>
+                    <p class="subtitle">Confirm the validation type and outcome before copying into the tracker.</p>
+                </div>
+                <div class="call-modal-actions">
+                    <button id="copyEventTime" type="button" class="secondary">Only Copy Event Time</button>
+                    <button id="copyCallTime" type="button" class="secondary">Only Copy Call Time</button>
+                </div>
+            </div>
+            <div class="form-grid">
+                <div class="form-group" id="validationPrompt">
+                    <label>Is this the correct validation type?</label>
+                    <div class="actions">
+                        <button type="button" id="validationYes" class="choice-button">Yes</button>
+                        <button type="button" id="validationNo" class="choice-button">No</button>
+                    </div>
+                    <div class="tag" id="validationDisplay"></div>
+                    <div class="form-group hidden" id="validationEditGroup">
+                        <label for="validationInput">Adjust validation</label>
+                        <input type="text" id="validationInput" placeholder="Enter validation type">
+                        <div class="actions">
+                            <button type="button" id="saveValidation" class="primary">Save</button>
+                            <button type="button" id="cancelValidationEdit" class="ghost">Cancel</button>
+                        </div>
+                    </div>
+                    <div class="error-text hidden" id="validationError">Please confirm or adjust the validation type.</div>
+                </div>
+                <div class="form-group">
+                    <label for="modalDispatchName">Monitor name</label>
+                    <input type="text" id="modalDispatchName" placeholder="Enter monitor name">
+                    <div class="error-text hidden" id="dispatchError">Please provide a monitor name.</div>
+                </div>
+                <div class="form-group">
+                    <label>Was the contact made?</label>
+                    <div class="actions">
+                        <button type="button" id="contactYes" class="choice-button">Yes</button>
+                        <button type="button" id="contactNo" class="choice-button">No</button>
+                    </div>
+                    <div class="error-text hidden" id="contactError">Select the outcome of the call.</div>
+                </div>
+            </div>
+            <div class="result-box hidden" id="callResultBox">
+                <textarea id="tabOutput" readonly></textarea>
+                <button id="copyTabOutput" class="primary" type="button">Copy to clipboard</button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="ghost" id="cancelCall">Cancel</button>
+                <button type="button" class="primary" id="saveCall">Save call</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="bookmarkModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="bookmarkTitle">
+            <button class="close-modal" id="closeBookmarkModal" title="Close">×</button>
+            <h2 id="bookmarkTitle">Bookmark event</h2>
+            <p class="subtitle">Add an optional note to highlight next actions for this clip.</p>
+            <textarea id="bookmarkComment" placeholder="Add a quick note (optional)"></textarea>
+            <div id="bookmarkActions">
+                <button type="button" id="bookmarkCancel" class="ghost">Cancel</button>
+                <button type="button" id="bookmarkRemove" class="danger hidden">Remove Bookmark</button>
+                <button type="button" id="bookmarkSave" class="primary">Add Bookmark</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="confirmModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+            <button class="close-modal" id="closeConfirmModal" title="Close">×</button>
+            <h2 id="confirmTitle">Confirm action</h2>
+            <p class="subtitle" id="confirmMessage">Are you sure?</p>
+            <div class="modal-actions">
+                <button type="button" id="confirmCancel" class="ghost">Cancel</button>
+                <button type="button" id="confirmAccept" class="primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="logToast" role="status" aria-live="polite"></div>
+
+    <script src="log.js"></script>
+</body>
+</html>

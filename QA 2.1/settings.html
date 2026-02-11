@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist · Settings</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page">
+    <div class="page-shell">
+        <header class="page-header">
+            <div class="page-title">
+                <h1>Settings</h1>
+                <p>Configure automation, playback behaviour, and validation preferences for QA Assist.</p>
+            </div>
+            <nav class="page-nav">
+                <a class="page-nav-link" href="log.html">Event Log</a>
+                <a class="page-nav-link active" href="settings.html">Settings</a>
+                <a class="page-nav-link" href="site-info.html">Site Info</a>
+                <a class="page-nav-link" href="qa-control.html">QA Control</a>
+            </nav>
+        </header>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>Custom speed</h2>
+                <div class="card-controls">
+                    <button id="addRule" class="icon-button" type="button" aria-label="Add custom speed rule">+</button>
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Map event types to preferred playback speeds for consistent review tempo.</p>
+                <div id="rulesContainer" class="stack"></div>
+            </div>
+        </section>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>Smart skip</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <label class="toggle-row">
+                    <input id="smartSkipToggle" type="checkbox"> <span>Enable Smart Skip</span>
+                </label>
+                <label id="skipContainer" class="inline-input">
+                    Skip when playback stalls after
+                    <input id="skipDelay" type="number" min="0" max="30" value="0"> seconds
+                </label>
+            </div>
+        </section>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>Auto loop</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <label class="toggle-row">
+                    <input id="loopToggle" type="checkbox"> <span>Enable Auto Loop</span>
+                </label>
+                <div class="grid two">
+                    <label id="loopResetContainer" class="inline-input">
+                        Trigger when idle for
+                        <input id="loopReset" type="number" min="0" value="8"> seconds
+                    </label>
+                    <label id="loopHoldContainer" class="inline-input">
+                        Hold left arrow for
+                        <input id="loopHold" type="number" min="0" value="5"> seconds
+                    </label>
+                </div>
+            </div>
+        </section>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>OAS Mode</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <label class="toggle-row">
+                    <input id="oasModeToggle" type="checkbox"> <span>Enable OAS Mode</span>
+                </label>
+                <p class="helper-text">Use the right arrow for auto-advance when videos end.</p>
+            </div>
+        </section>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>Anti lag</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <label class="toggle-row">
+                    <input id="antiLagToggle" type="checkbox"> <span>Enable Anti Lag Mode</span>
+                </label>
+                <label id="antiLagSeekContainer" class="inline-input">
+                    Seek back
+                    <input id="antiLagSeek" type="number" min="0" step="0.1" value="0.5"> seconds when playback stalls
+                </label>
+            </div>
+        </section>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>Validation filter</h2>
+                <div class="card-controls">
+                    <label class="toggle-row inline-toggle">
+                        <input id="validationFilterToggle" type="checkbox"> <span>Enable Filter</span>
+                    </label>
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Control which validation labels are auto-detected during call validation. When disabled, the original validation text is used.</p>
+                <div id="validationList" class="validation-list"></div>
+                <button id="addValidationTerm" type="button" class="secondary">Add validation label</button>
+            </div>
+        </section>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>Buffer between videos</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <label class="inline-input">
+                    Buffer
+                    <input id="keyDelay" type="number" min="0" value="2"> seconds between videos
+                </label>
+            </div>
+        </section>
+
+        <section class="page-card">
+            <div class="card-header">
+                <h2>Site overrides</h2>
+                <div class="card-controls">
+                    <button id="addSiteRule" class="icon-button" type="button" aria-label="Add site override">+</button>
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Create domain-specific automation profiles. Overrides apply automatically when the active tab matches the configured pattern.</p>
+                <div id="siteRulesContainer" class="stack"></div>
+            </div>
+        </section>
+
+        <p class="footer-note">Settings take effect immediately on the active tab when saved.</p>
+    </div>
+
+    <button class="primary floating-save" id="saveSettings" type="button">Save settings</button>
+    <div class="toast" id="settingsToast" role="status" aria-live="polite"></div>
+
+    <div class="modal" id="confirmModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+            <button class="modal-close" id="confirmClose" type="button" aria-label="Close">×</button>
+            <h3 id="confirmTitle">Confirm action</h3>
+            <p id="confirmMessage">Are you sure you want to continue?</p>
+            <div class="modal-actions">
+                <button type="button" id="confirmCancel" class="ghost">Cancel</button>
+                <button type="button" id="confirmAccept" class="danger">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="settings.js"></script>
+</body>
+</html>

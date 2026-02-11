@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="popup">
+    <div class="popup-shell">
+        <header class="popup-header">
+            <div class="popup-title">
+                <img id="statusIcon" src="off.png" alt="" aria-hidden="true" class="status-icon" />
+                <h1>QA Assist</h1>
+            </div>
+            <label class="toggle main-toggle">
+                <input type="checkbox" id="extensionToggle">
+                <span class="toggle-label">Extension</span>
+            </label>
+        </header>
+
+        <section class="status-panel">
+            <div class="status-row">
+                <span class="status-label">Mode</span>
+                <span id="modeBadge" class="mode-pill mode-off">Off</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Site</span>
+                <span id="siteDisplay" class="status-value">—</span>
+            </div>
+            <div class="status-row dispatch-row">
+                <span class="status-label">Monitor</span>
+                <div class="dispatch-controls">
+                    <input type="text" id="dispatchName" placeholder="Add name" autocomplete="off">
+                    <button type="button" id="saveDispatch" class="dispatch-save" title="Save monitor name">✓</button>
+                    <button
+                        type="button"
+                        id="instaLog"
+                        class="insta-log"
+                        title="Insta log"
+                        aria-label="Insta log"
+                    >
+                        📞
+                    </button>
+                    <span id="dispatchSaved" class="dispatch-saved" aria-live="polite">Save</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="toggle-panel">
+            <div class="toggle-row">
+                <label class="toggle-inline">
+                    <input type="checkbox" id="autoModeToggle">
+                    <span>Start Auto</span>
+                </label>
+                <button type="button" id="forceAuto" class="link-button hidden">Force anyway</button>
+            </div>
+            <label class="toggle-inline" id="autoPressLabel">
+                <input type="checkbox" id="autoPressToggle">
+                <span>Auto Press Next</span>
+            </label>
+            <label class="toggle-inline" id="autoLoopLabel">
+                <input type="checkbox" id="autoLoopToggle">
+                <span>Auto Loop</span>
+            </label>
+            <label class="toggle-inline">
+                <input type="checkbox" id="removeEyeToggle">
+                <span>Remove Eye Tracker</span>
+            </label>
+            <label class="select-row" for="universalSpeedSelect">
+                <span>Universal Speed</span>
+                <select id="universalSpeedSelect">
+                    <option value="off">Off</option>
+                    <option value="1">1x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="1.75">1.75x</option>
+                    <option value="2">2x</option>
+                </select>
+            </label>
+            <div class="playback-controls">
+                <span class="playback-label">Universal Playback</span>
+                <div class="playback-buttons">
+                    <button type="button" id="pauseAll" class="mini-button" title="Pause all videos" aria-label="Pause all videos">⏸</button>
+                    <button type="button" id="playAll" class="mini-button" title="Play all videos" aria-label="Play all videos">▶</button>
+                </div>
+            </div>
+        </section>
+
+        <p id="lostMessage" class="status-note hidden">Required page elements not detected. Refresh the tab or force auto mode.</p>
+
+        <div class="popup-actions">
+            <button id="openLog" class="primary">Event Log</button>
+            <button id="openSettings" class="primary">Settings</button>
+            <button id="openControl" class="primary">QA Control</button>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

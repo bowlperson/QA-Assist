@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>QA Assist · Control Center</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="page">
+    <div class="page-shell">
+        <header class="page-header">
+            <div class="page-title">
+                <h1>QA Control Center</h1>
+                <p>Track site health, flag fatigue trends, and spot technical hotspots in real time.</p>
+            </div>
+            <div class="page-tools">
+                <nav class="page-nav">
+                    <a class="page-nav-link" href="log.html">Event Log</a>
+                    <a class="page-nav-link" href="settings.html">Settings</a>
+                    <a class="page-nav-link" href="site-info.html">Site Info</a>
+                    <a class="page-nav-link active" href="qa-control.html">QA Control</a>
+                </nav>
+                <button
+                    id="controlRefresh"
+                    class="icon-button"
+                    type="button"
+                    title="Rescan saved logs"
+                    aria-label="Rescan saved logs"
+                >
+                    <span class="icon" aria-hidden="true">&#8635;</span>
+                </button>
+            </div>
+        </header>
+
+        <section class="page-card" id="siteStatsCard">
+            <div class="card-header">
+                <h2>Site stats</h2>
+                <div class="card-controls">
+                    <span id="siteStatsSummary" class="badge subtle">0 sites</span>
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Summaries refresh whenever new events are captured. Counts include every recorded event.</p>
+                <div id="siteStatsContainer" class="stats-grid"></div>
+            </div>
+        </section>
+
+        <section class="page-card" id="watchListCard">
+            <div class="card-header">
+                <h2>Operator watch list</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Operators or trucks with three or more fatigue validations in the same window are flagged below.</p>
+                <div class="watch-columns">
+                    <div class="watch-column">
+                        <h3>3+ fatigue events within 1 hour</h3>
+                        <div id="watchListOneHour" class="watch-list"></div>
+                    </div>
+                    <div class="watch-column">
+                        <h3>3+ fatigue events within 2 hours</h3>
+                        <div id="watchListTwoHour" class="watch-list"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="page-card" id="spotlightsCard">
+            <div class="card-header">
+                <h2>Technical spotlights</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Highlights trucks or operators with repeated technical alerts inside the same hour window.</p>
+                <div class="spotlight-sections">
+                    <div class="spotlight-block">
+                        <h3>Event type hotspots</h3>
+                        <div class="spotlight-tiers">
+                            <div>
+                                <h4>5+ within an hour</h4>
+                                <div id="eventHotFive" class="spotlight-list"></div>
+                            </div>
+                            <div>
+                                <h4>3+ within an hour</h4>
+                                <div id="eventHotThree" class="spotlight-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="spotlight-block">
+                        <h3>Validation hotspots</h3>
+                        <div class="spotlight-tiers">
+                            <div>
+                                <h4>5+ within an hour</h4>
+                                <div id="validationHotFive" class="spotlight-list"></div>
+                            </div>
+                            <div>
+                                <h4>3+ within an hour</h4>
+                                <div id="validationHotThree" class="spotlight-list"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="page-card" id="fluctuationCard">
+            <div class="card-header">
+                <h2>Event fluctuations</h2>
+                <div class="card-controls">
+                    <button id="fluctuationExport" class="secondary" type="button" disabled>Export CSV</button>
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Same-truck events with more than two events in a one-minute window.</p>
+                <div id="fluctuationContainer" class="fluctuation-list"></div>
+            </div>
+        </section>
+    </div>
+
+    <div class="toast" id="controlToast" role="status" aria-live="polite"></div>
+
+    <script src="qa-control.js"></script>
+</body>
+</html>
