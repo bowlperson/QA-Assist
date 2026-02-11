@@ -47,13 +47,13 @@
 
         <section class="page-card" id="watchListCard">
             <div class="card-header">
-                <h2>Operator watch list</h2>
+                <h2>Truck watch list</h2>
                 <div class="card-controls">
                     <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
                 </div>
             </div>
             <div class="card-body">
-                <p class="helper-text">Operators or trucks with three or more fatigue validations in the same window are flagged below.</p>
+                <p class="helper-text">Trucks with three or more fatigue validations in the same window are flagged below. Duplicate event records with identical timestamp, event, and validation are ignored for watch calculations.</p>
                 <div class="watch-columns">
                     <div class="watch-column">
                         <h3>3+ fatigue events within 1 hour</h3>
@@ -75,7 +75,7 @@
                 </div>
             </div>
             <div class="card-body">
-                <p class="helper-text">Highlights trucks or operators with repeated technical alerts inside the same hour window.</p>
+                <p class="helper-text">Highlights trucks with repeated technical alerts inside the same hour window.</p>
                 <div class="spotlight-sections">
                     <div class="spotlight-block">
                         <h3>Event type hotspots</h3>
@@ -116,7 +116,7 @@
                 </div>
             </div>
             <div class="card-body">
-                <p class="helper-text">Same-truck events generated less than two minutes apart.</p>
+                <p class="helper-text">Same-truck events with more than two events in a one-minute window.</p>
                 <div id="fluctuationContainer" class="fluctuation-list"></div>
             </div>
         </section>

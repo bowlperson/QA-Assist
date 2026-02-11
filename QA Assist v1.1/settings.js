@@ -31,9 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const loopHoldInput = document.getElementById('loopHold');
     const loopResetContainer = document.getElementById('loopResetContainer');
     const loopHoldContainer = document.getElementById('loopHoldContainer');
+    const oasModeToggle = document.getElementById('oasModeToggle');
     const antiLagToggle = document.getElementById('antiLagToggle');
     const antiLagSeekInput = document.getElementById('antiLagSeek');
     const antiLagSeekContainer = document.getElementById('antiLagSeekContainer');
+    const siteHealthCheckMinutesInput = document.getElementById('siteHealthCheckMinutes');
     const saveBtn = document.getElementById('saveSettings');
     const siteRulesContainer = document.getElementById('siteRulesContainer');
     const addSiteRuleBtn = document.getElementById('addSiteRule');
@@ -285,6 +287,15 @@ document.addEventListener('DOMContentLoaded', () => {
         autoNextLabel.appendChild(autoNext);
         autoNextLabel.append(' Auto Press Next');
 
+        const oasMode = document.createElement('input');
+        oasMode.type = 'checkbox';
+        oasMode.className = 'oasMode';
+        oasMode.checked = rule?.oasModeEnabled || false;
+
+        const oasModeLabel = document.createElement('label');
+        oasModeLabel.appendChild(oasMode);
+        oasModeLabel.append(' OAS Mode');
+
         const removeEye = document.createElement('input');
         removeEye.type = 'checkbox';
         removeEye.className = 'removeEye';
@@ -368,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             speedLabel,
             keyLabel,
             autoNextLabel,
+            oasModeLabel,
             removeEyeLabel,
             smartSkipLabel,
             keyDelayLabel,
@@ -512,11 +524,13 @@ document.addEventListener('DOMContentLoaded', () => {
             autoLoopEnabled: false,
             autoLoopDelay: 8,
             autoLoopHold: 5,
+            oasModeEnabled: false,
             siteRules: {},
             validationVocabulary: DEFAULT_VALIDATION_VOCABULARY,
             validationFilterEnabled: true,
             antiLagEnabled: false,
             antiLagSeekSeconds: DEFAULT_ANTI_LAG_SEEK,
+            siteHealthCheckMinutes: 10,
         },
         (data) => {
         const rules = data.customSpeedRules;
@@ -532,11 +546,17 @@ document.addEventListener('DOMContentLoaded', () => {
         loopToggle.checked = data.autoLoopEnabled;
         loopResetInput.value = data.autoLoopDelay ?? 8;
         loopHoldInput.value = data.autoLoopHold ?? 5;
+        if (oasModeToggle) {
+            oasModeToggle.checked = data.oasModeEnabled ?? false;
+        }
         if (antiLagToggle) {
             antiLagToggle.checked = data.antiLagEnabled ?? false;
         }
         if (antiLagSeekInput) {
             antiLagSeekInput.value = data.antiLagSeekSeconds ?? DEFAULT_ANTI_LAG_SEEK;
+        }
+        if (siteHealthCheckMinutesInput) {
+            siteHealthCheckMinutesInput.value = data.siteHealthCheckMinutes ?? 10;
         }
         Object.entries(data.siteRules).forEach(([url, cfg]) => {
             createSiteRuleRow(Object.assign({ url }, cfg));
@@ -571,7 +591,12 @@ document.addEventListener('DOMContentLoaded', () => {
         keyDelayInput.value = keyDelay;
 
         const enabled = smartSkipToggle.checked;
+        const siteHealthCheckMinutes = Math.max(1, parseFloat(siteHealthCheckMinutesInput?.value) || 10);
+        if (siteHealthCheckMinutesInput) {
+            siteHealthCheckMinutesInput.value = siteHealthCheckMinutes;
+        }
         const autoLoopEnabled = loopToggle.checked;
+        const oasModeEnabled = oasModeToggle ? oasModeToggle.checked : false;
         const antiLagEnabled = antiLagToggle ? antiLagToggle.checked : false;
         const rawAntiLag = parseFloat(antiLagSeekInput?.value);
         const antiLagSeekSeconds = Number.isFinite(rawAntiLag)
@@ -614,6 +639,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 speed: div.querySelector('.speed').value,
                 pressKey: div.querySelector('.key').value,
                 autoPressNext: div.querySelector('.autoNext').checked,
+                oasModeEnabled: div.querySelector('.oasMode').checked,
                 removeEyeTracker: div.querySelector('.removeEye').checked,
                 smartSkipEnabled: div.querySelector('.smartSkip').checked,
                 skipDelay: parseFloat(div.querySelector('.skipDelay').value) || 0,
@@ -634,11 +660,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 autoLoopEnabled,
                 autoLoopDelay: parseFloat(loopResetInput.value) || 8,
                 autoLoopHold: parseFloat(loopHoldInput.value) || 5,
+                oasModeEnabled,
                 siteRules,
                 validationVocabulary: sanitizedVocabulary,
                 validationFilterEnabled,
                 antiLagEnabled,
                 antiLagSeekSeconds,
+                siteHealthCheckMinutes,
             },
             () => {
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -651,11 +679,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             autoLoopEnabled,
                             autoLoopDelay: parseFloat(loopResetInput.value) || 8,
                             autoLoopHold: parseFloat(loopHoldInput.value) || 5,
+                            oasModeEnabled,
                             siteRules,
                             validationVocabulary: sanitizedVocabulary,
                             validationFilterEnabled,
                             antiLagEnabled,
                             antiLagSeekSeconds,
+                            siteHealthCheckMinutes,
                         });
                     }
                 });
