@@ -7,6 +7,11 @@ const REQUIRED_CLASS_SELECTORS = [
     ".gvEventListItemPadding.selected.primarysel",
 ];
 
+const OAS_REQUIRED_SELECTORS = [
+    ".List .content",
+    ".List .item .Thumbnail .image-container",
+];
+
 const DEFAULT_VALIDATION_VOCABULARY = [
     { label: "Blocked", keywords: ["blocked"] },
     { label: "Critical", keywords: ["critical"] },
@@ -35,6 +40,7 @@ const state = {
     bufferDelay: 4,
     autoLoopDelay: 8,
     autoLoopHold: 5,
+    oasMode: false,
     removeEyeTracker: false,
     antiLagEnabled: false,
     antiLagSeekSeconds: DEFAULT_ANTI_LAG_SEEK,
@@ -317,6 +323,13 @@ function removeEyeTrackerElements() {
     });
 }
 
+function findOasTruckNameFromContainers(root = document) {
+    const row = Array.from(root.querySelectorAll(".container")).find(
+        (container) => container.querySelector(".type")?.textContent?.trim() === "Name",
+    );
+    return row?.querySelector(".data")?.textContent?.trim() || "";
+}
+
 function collectEventDetails(video, options = {}) {
     const suppressWarnings = Boolean(options && options.suppressWarnings);
     const allRows = document.querySelectorAll(".gvEventListItemPadding");
@@ -333,8 +346,85 @@ function collectEventDetails(video, options = {}) {
     const pageUrl = getPageUrl();
     let isLastCell = false;
     let validationType = "";
+    let oasDetailRoot = null;
 
-    if (isHideTracking) {
+    if (state.oasMode) {
+        const selectedItem = document.querySelector(".List .item.selected");
+        if (!selectedItem) {
+            if (!suppressWarnings) {
+                console.warn("⚠️ No selected OAS item found for event logging.");
+            }
+            return null;
+        }
+
+        const listRoot = selectedItem.closest(".List");
+        const items = Array.from(listRoot ? listRoot.querySelectorAll(".item") : []);
+        if (items.length) {
+            isLastCell = selectedItem === items[items.length - 1];
+        }
+
+        oasDetailRoot = listRoot?.parentElement || selectedItem.parentElement || null;
+        const lookupRoot = oasDetailRoot || selectedItem;
+        const eventTypeElement =
+            selectedItem.querySelector("label.field.event_type, label.field-event_type") ||
+            lookupRoot.querySelector("label.field.event_type, label.field-event_type");
+        const timestampElement =
+            selectedItem.querySelector("label.field-created_at, label.field.created_at") ||
+            lookupRoot.querySelector("label.field-created_at, label.field.created_at");
+        const validationElement =
+            selectedItem.querySelector("label.field-reviewed_type, label.field.reviewed_type") ||
+            lookupRoot.querySelector("label.field-reviewed_type, label.field.reviewed_type");
+        const eventIdElement =
+            selectedItem.querySelector("label.field-eventid, label.field-event_id") ||
+            lookupRoot.querySelector("label.field-eventid, label.field-event_id");
+
+        if (eventTypeElement) {
+            eventType = eventTypeElement.textContent.trim();
+        }
+        if (timestampElement) {
+            timestamp = timestampElement.textContent.trim();
+        }
+        if (validationElement) {
+            validationType = validationElement.textContent.trim();
+        }
+        if (eventIdElement) {
+            eventId = eventIdElement.textContent.trim();
+        }
+
+        const fieldsRoot =
+            selectedItem.querySelector(".Fields") ||
+            (oasDetailRoot ? oasDetailRoot.querySelector(".Fields") : null);
+        const fieldContainers = fieldsRoot
+            ? Array.from(fieldsRoot.querySelectorAll(".fields .container"))
+            : [];
+        fieldContainers.forEach((container) => {
+            const typeNode = container.querySelector(".type");
+            const dataNode = container.querySelector(".data");
+            const label = typeNode ? typeNode.textContent.trim().toLowerCase() : "";
+            const value = dataNode ? dataNode.textContent.trim() : "";
+            if (!value) {
+                return;
+            }
+            if (label === "name" && !truckNumber) {
+                truckNumber = value;
+            }
+            if (label === "equipment" && !truckNumber) {
+                truckNumber = value;
+            }
+            if (label === "operator" && !operatorName) {
+                operatorName = value;
+            }
+        });
+
+        const containerTruckNumber = findOasTruckNameFromContainers(document);
+        if (containerTruckNumber) {
+            truckNumber = containerTruckNumber;
+        }
+
+        if (!validationType) {
+            validationType = extractValidationFromContainer(selectedItem);
+        }
+    } else if (isHideTracking) {
         const selectedItem = document.querySelector(".item.selected");
 
         if (selectedItem) {
@@ -463,10 +553,11 @@ function collectEventDetails(video, options = {}) {
     }
 
     if (!validationType) {
-        const detailsPanel =
-            document.querySelector(".gvDetailPanel, .gvEventDetails, .event-details, .details-panel") ||
-            selectedRow?.parentElement ||
-            null;
+        const detailsPanel = state.oasMode
+            ? oasDetailRoot
+            : document.querySelector(".gvDetailPanel, .gvEventDetails, .event-details, .details-panel") ||
+              selectedRow?.parentElement ||
+              null;
         validationType = extractValidationFromContainer(detailsPanel) || validationType;
     }
 
@@ -478,7 +569,7 @@ function collectEventDetails(video, options = {}) {
     const eventData = {
         eventType,
         truckNumber,
-        operatorName: operatorName || "",
+        operatorName: "",
         timestamp,
         pageUrl,
         isLastCell,
@@ -515,7 +606,7 @@ function createEventSignature(eventData) {
         return "";
     }
 
-    const parts = [eventData.eventId, eventData.eventType, eventData.timestamp, eventData.truckNumber, eventData.operatorName];
+    const parts = [eventData.eventId, eventData.eventType, eventData.timestamp, eventData.truckNumber];
     return parts
         .map((value) => String(value || "").trim().toLowerCase())
         .filter((value) => value.length > 0)
@@ -568,6 +659,70 @@ function generateLogId() {
     return `event-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 }
 
+const EVENT_DB_NAME = "qaAssistEventLogs";
+const EVENT_DB_VERSION = 1;
+const EVENT_STORE = "eventLogs";
+
+function openEventLogDb() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(EVENT_DB_NAME, EVENT_DB_VERSION);
+
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            const store = db.objectStoreNames.contains(EVENT_STORE)
+                ? request.transaction.objectStore(EVENT_STORE)
+                : db.createObjectStore(EVENT_STORE, { keyPath: "id" });
+
+            if (!store.indexNames.contains("eventKey")) {
+                store.createIndex("eventKey", "eventKey", { unique: false });
+            }
+            if (!store.indexNames.contains("timestampMs")) {
+                store.createIndex("timestampMs", "timestampMs", { unique: false });
+            }
+            if (!store.indexNames.contains("siteName")) {
+                store.createIndex("siteName", "siteName", { unique: false });
+            }
+        };
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("Failed to open event log DB"));
+    });
+}
+
+async function findLogByEventKey(eventKey) {
+    if (!eventKey) {
+        return null;
+    }
+
+    const db = await openEventLogDb();
+    try {
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(EVENT_STORE, "readonly");
+            const index = tx.objectStore(EVENT_STORE).index("eventKey");
+            const request = index.get(eventKey);
+            request.onsuccess = () => resolve(request.result || null);
+            request.onerror = () => reject(request.error || new Error("Failed to lookup event key"));
+        });
+    } finally {
+        db.close();
+    }
+}
+
+async function putEventLog(logEntry) {
+    const db = await openEventLogDb();
+    try {
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction(EVENT_STORE, "readwrite");
+            tx.objectStore(EVENT_STORE).put(logEntry);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error || new Error("Failed to save event log"));
+            tx.onabort = () => reject(tx.error || new Error("Event log save aborted"));
+        });
+    } finally {
+        db.close();
+    }
+}
+
 function registerEventLog(eventData, callback) {
     if (!eventData) {
         if (typeof callback === "function") {
@@ -578,29 +733,16 @@ function registerEventLog(eventData, callback) {
 
     const eventKey = createEventKey(eventData);
 
-    chrome.storage.local.get("eventLogs", (data) => {
-        const logs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
-        const existingLog = eventKey
-            ? logs.find((log) => log.eventKey === eventKey || createEventKey(log) === eventKey)
-            : null;
-
-        if (existingLog) {
-            if (!existingLog.eventKey && eventKey) {
-                existingLog.eventKey = eventKey;
-                chrome.storage.local.set({ eventLogs: logs }, () => {
-                    if (typeof callback === "function") {
-                        callback(existingLog);
-                    }
-                });
-                return;
+    findLogByEventKey(eventKey)
+        .then((existingLog) => {
+            if (existingLog) {
+                if (typeof callback === "function") {
+                    callback(existingLog);
+                }
+                return null;
             }
-            if (typeof callback === "function") {
-                setTimeout(() => callback(existingLog), 0);
-            }
-            return;
-        }
 
-        resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
+            return resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
             const rawValidation = eventData.validationTypeRaw || eventData.validationType || "";
             const callValidation = eventData.callValidationType || rawValidation;
             const normalizedValidation = state.validationFilterEnabled
@@ -622,14 +764,19 @@ function registerEventLog(eventData, callback) {
                 id: generateLogId(),
             };
 
-            logs.push(enrichedEvent);
-            chrome.storage.local.set({ eventLogs: logs }, () => {
+            return putEventLog(enrichedEvent).then(() => {
                 if (typeof callback === "function") {
                     callback(enrichedEvent);
                 }
             });
         });
-    });
+        })
+        .catch((error) => {
+            console.warn("Failed to register event log", error);
+            if (typeof callback === "function") {
+                callback(null);
+            }
+        });
 }
 
 function getActiveVideoElement() {
@@ -757,8 +904,9 @@ function startBufferTimer(signature, eventData) {
         if (state.pendingBufferSignature && state.pendingBufferSignature !== state.lastEventSignature) {
             return;
         }
-        pressKey("ArrowDown");
-        if (state.autoPressNext && eventData?.isLastCell) {
+        const advanceKey = state.oasMode ? "ArrowRight" : "ArrowDown";
+        pressKey(advanceKey);
+        if (!state.oasMode && state.autoPressNext && eventData?.isLastCell) {
             setTimeout(() => pressKey("ArrowRight"), 600);
         }
     }, delay);
@@ -849,7 +997,8 @@ function stopAutomationLoop() {
 }
 
 function detectRequiredElements() {
-    const hasElement = REQUIRED_CLASS_SELECTORS.some((selector) => Boolean(document.querySelector(selector)));
+    const selectors = state.oasMode ? OAS_REQUIRED_SELECTORS : REQUIRED_CLASS_SELECTORS;
+    const hasElement = selectors.some((selector) => Boolean(document.querySelector(selector)));
     if (hasElement !== state.hasRequiredElements) {
         state.hasRequiredElements = hasElement;
         updateMode();
@@ -889,6 +1038,33 @@ function updateAllVideoPlaybackRates() {
             console.warn("Unable to update playback speed", error);
         }
     });
+}
+
+function applyPlaybackCommand(command) {
+    if (!state.enabled) {
+        return false;
+    }
+    const videos = document.querySelectorAll("video.gvVideo.controllerless, .videos.hide-tracking video");
+    if (!videos.length) {
+        return false;
+    }
+    let updated = false;
+    videos.forEach((video) => {
+        if (command === "pause") {
+            if (!video.paused) {
+                video.pause();
+            }
+            updated = true;
+        } else if (command === "play") {
+            applyPlaybackSpeed(video);
+            const playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === "function") {
+                playPromise.catch(() => {});
+            }
+            updated = true;
+        }
+    });
+    return updated;
 }
 
 function getLagState(video) {
@@ -1162,11 +1338,21 @@ function handleSelectionChange() {
 
 function observeSelectionChanges() {
     const observer = new MutationObserver((mutations) => {
-        if (
-            mutations.some((mutation) =>
-                mutation.type === "attributes" && mutation.target.classList.contains("gvEventListItemPadding"),
-            )
-        ) {
+        const hasClassicSelectionChange = mutations.some(
+            (mutation) =>
+                mutation.type === "attributes" &&
+                mutation.target.classList.contains("gvEventListItemPadding"),
+        );
+        const hasOasSelectionChange = state.oasMode
+            ? mutations.some(
+                  (mutation) =>
+                      mutation.type === "attributes" &&
+                      mutation.target.classList.contains("item") &&
+                      mutation.target.closest(".List"),
+              )
+            : false;
+
+        if (hasClassicSelectionChange || hasOasSelectionChange) {
             handleSelectionChange();
         }
     });
@@ -1213,6 +1399,7 @@ function getStatusSnapshot() {
         bufferDelay: state.bufferDelay,
         autoLoopDelay: state.autoLoopDelay,
         autoLoopHold: state.autoLoopHold,
+        oasMode: state.oasMode,
         universalSpeed: state.universalSpeed,
         antiLagEnabled: state.antiLagEnabled,
         antiLagSeekSeconds: state.antiLagSeekSeconds,
@@ -1315,6 +1502,7 @@ function applySettings(data) {
     state.bufferDelay = parsePositiveNumber(data.keyDelay, 4);
     state.autoLoopDelay = parsePositiveNumber(data.autoLoopDelay, 8);
     state.autoLoopHold = parsePositiveNumber(data.autoLoopHold, 5);
+    state.oasMode = normalizeBoolean(data.oasModeEnabled, false);
     state.antiLagEnabled = normalizeBoolean(data.antiLagEnabled, state.antiLagEnabled);
     state.antiLagSeekSeconds = parsePositiveNumber(
         data.antiLagSeekSeconds,
@@ -1322,6 +1510,7 @@ function applySettings(data) {
     );
     applyValidationPreferences(data.validationVocabulary || DEFAULT_VALIDATION_VOCABULARY, data.validationFilterEnabled);
 
+    detectRequiredElements();
     setAutoMode(data.autoModeEnabled);
     setAutoPressNext(data.autoPressNext);
     setAutoLoop(data.autoLoopEnabled);
@@ -1382,6 +1571,7 @@ function handleStorageChange(changes, areaName) {
         changes.keyDelay ||
         changes.autoLoopDelay ||
         changes.autoLoopHold ||
+        changes.oasModeEnabled ||
         changes.validationVocabulary ||
         changes.validationFilterEnabled ||
         changes.playbackSpeed ||
@@ -1401,6 +1591,7 @@ function handleStorageChange(changes, areaName) {
                 keyDelay: state.bufferDelay,
                 autoLoopDelay: state.autoLoopDelay,
                 autoLoopHold: state.autoLoopHold,
+                oasModeEnabled: state.oasMode,
                 validationVocabulary: state.validationVocabulary,
                 validationFilterEnabled: state.validationFilterEnabled,
                 removeEyeTracker: state.removeEyeTracker,
@@ -1436,6 +1627,7 @@ function initialize() {
             keyDelay: 4,
             autoLoopDelay: 8,
             autoLoopHold: 5,
+            oasModeEnabled: false,
             validationVocabulary: DEFAULT_VALIDATION_VOCABULARY,
             validationFilterEnabled: true,
             antiLagEnabled: false,
@@ -1528,6 +1720,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 siteName: logEntry.siteName || state.siteName || "",
             });
         });
+        return true;
+    }
+
+    if (message.type === "qaAssist:playbackCommand") {
+        const action = typeof message.action === "string" ? message.action : "";
+        if (action !== "pause" && action !== "play") {
+            sendResponse?.({ success: false, reason: "invalid" });
+            return true;
+        }
+        const handled = applyPlaybackCommand(action);
+        sendResponse?.({ success: handled });
         return true;
     }
 

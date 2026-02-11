@@ -1,6 +1,45 @@
+const EVENT_DB_NAME = "qaAssistEventLogs";
+const EVENT_DB_VERSION = 1;
+const EVENT_STORE = "eventLogs";
+
+function openEventLogDb() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(EVENT_DB_NAME, EVENT_DB_VERSION);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            const store = db.objectStoreNames.contains(EVENT_STORE)
+                ? request.transaction.objectStore(EVENT_STORE)
+                : db.createObjectStore(EVENT_STORE, { keyPath: "id" });
+            if (!store.indexNames.contains("eventKey")) {
+                store.createIndex("eventKey", "eventKey", { unique: false });
+            }
+            if (!store.indexNames.contains("timestampMs")) {
+                store.createIndex("timestampMs", "timestampMs", { unique: false });
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("Failed to open event DB"));
+    });
+}
+
+async function getAllEventLogsFromDb() {
+    const db = await openEventLogDb();
+    try {
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(EVENT_STORE, "readonly");
+            const req = tx.objectStore(EVENT_STORE).getAll();
+            req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+            req.onerror = () => reject(req.error || new Error("Failed to read logs"));
+        });
+    } finally {
+        db.close();
+    }
+}
+
 const FATIGUE_WINDOW_ONE_HOUR = 60 * 60 * 1000;
 const FATIGUE_WINDOW_TWO_HOURS = 2 * 60 * 60 * 1000;
-const EVENT_FLUCTUATION_WINDOW = 2 * 60 * 1000;
+const EVENT_FLUCTUATION_WINDOW = 60 * 1000;
+const EVENT_FLUCTUATION_MIN_EVENTS = 3;
 const SPOTLIGHT_WINDOW = 60 * 60 * 1000;
 
 const EVENT_TYPE_SPOTLIGHTS = ["searching face", "blocked"];
@@ -62,7 +101,28 @@ document.addEventListener("DOMContentLoaded", () => {
     loadControlData();
 });
 
-function loadControlData(options = {}) {
+function buildDuplicateKey(log) {
+    return [safeText(log.timestamp), safeText(log.eventType), safeText(log.callValidationType || log.validationType), safeText(log.truckNumber)]
+        .map((part) => part.toLowerCase())
+        .join("|");
+}
+
+function dedupeForAnalytics(logs) {
+    const seen = new Set();
+    return logs.filter((log) => {
+        const key = buildDuplicateKey(log);
+        if (!key || key === "|||") {
+            return true;
+        }
+        if (seen.has(key)) {
+            return false;
+        }
+        seen.add(key);
+        return true;
+    });
+}
+
+async function loadControlData(options = {}) {
     const { announce = false, showLoading = false } = options;
 
     if (showLoading && refreshButton) {
@@ -70,72 +130,89 @@ function loadControlData(options = {}) {
         refreshButton.classList.add("spinning");
     }
 
-    chrome.storage.local.get("eventLogs", (data) => {
-        const storageError = chrome.runtime.lastError || null;
-        const rawLogs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
-        const logs = rawLogs
-            .map((log) => normalizeLog(log))
-            .filter(Boolean)
-            .sort((a, b) => {
-                const timeA = getEventTime(a);
-                const timeB = getEventTime(b);
-                if (Number.isFinite(timeA) && Number.isFinite(timeB)) {
-                    return timeA - timeB;
-                }
-                if (Number.isFinite(timeA)) {
-                    return -1;
-                }
-                if (Number.isFinite(timeB)) {
-                    return 1;
-                }
-                const createdA = Number.isFinite(a.createdAt) ? a.createdAt : 0;
-                const createdB = Number.isFinite(b.createdAt) ? b.createdAt : 0;
-                return createdA - createdB;
+    let storageError = null;
+    let rawLogs = [];
+
+    try {
+        rawLogs = await getAllEventLogsFromDb();
+    } catch (error) {
+        storageError = error;
+    }
+
+    if (!Array.isArray(rawLogs) || !rawLogs.length) {
+        await new Promise((resolve) => {
+            chrome.storage.local.get("eventLogs", (data) => {
+                const fallback = Array.isArray(data.eventLogs) ? data.eventLogs : [];
+                rawLogs = fallback;
+                resolve();
             });
+        });
+    }
 
-        renderSiteStats(logs, siteStatsContainer, siteStatsSummary);
-        const watchLists = buildFatigueWatchLists(logs);
-        renderWatchList(watchListOneHour, watchLists.withinOneHour, {
-            emptyMessage: "No operators have three fatigue events within one hour.",
-        });
-        renderWatchList(watchListTwoHour, watchLists.withinTwoHours, {
-            emptyMessage: "No operators have three fatigue events within two hours.",
-        });
-
-        const spotlights = buildSpotlights(logs);
-        renderSpotlightList(eventHotFive, spotlights.eventTypes.top, {
-            emptyMessage: "No trucks reached five hotspot events within an hour window.",
-            tone: "event",
-        });
-        renderSpotlightList(eventHotThree, spotlights.eventTypes.mid, {
-            emptyMessage: "No trucks reached three hotspot events within an hour window.",
-            tone: "event",
-        });
-        renderSpotlightList(validationHotFive, spotlights.validationTypes.top, {
-            emptyMessage: "No trucks reached five hotspot validations within an hour window.",
-            tone: "validation",
-        });
-        renderSpotlightList(validationHotThree, spotlights.validationTypes.mid, {
-            emptyMessage: "No trucks reached three hotspot validations within an hour window.",
-            tone: "validation",
+    const logs = rawLogs
+        .map((log) => normalizeLog(log))
+        .filter(Boolean)
+        .sort((a, b) => {
+            const timeA = getEventTime(a);
+            const timeB = getEventTime(b);
+            if (Number.isFinite(timeA) && Number.isFinite(timeB)) {
+                return timeA - timeB;
+            }
+            if (Number.isFinite(timeA)) {
+                return -1;
+            }
+            if (Number.isFinite(timeB)) {
+                return 1;
+            }
+            const createdA = Number.isFinite(a.createdAt) ? a.createdAt : 0;
+            const createdB = Number.isFinite(b.createdAt) ? b.createdAt : 0;
+            return createdA - createdB;
         });
 
-        currentFluctuationClusters = renderFluctuations(logs, fluctuationContainer);
-        updateFluctuationExportButton(fluctuationExportButton, currentFluctuationClusters);
+    const analyticsLogs = dedupeForAnalytics(logs);
 
-        if (announce) {
-            showControlToast(storageError ? "Unable to refresh control center" : "Control center refreshed");
-        }
-
-        if (showLoading && refreshButton) {
-            refreshButton.disabled = false;
-            refreshButton.classList.remove("spinning");
-        }
-
-        if (storageError) {
-            console.warn("Failed to load control data", storageError);
-        }
+    await renderSiteStats(analyticsLogs, siteStatsContainer, siteStatsSummary);
+    const watchLists = buildFatigueWatchLists(analyticsLogs);
+    renderWatchList(watchListOneHour, watchLists.withinOneHour, {
+        emptyMessage: "No trucks have three fatigue events within one hour.",
     });
+    renderWatchList(watchListTwoHour, watchLists.withinTwoHours, {
+        emptyMessage: "No trucks have three fatigue events within two hours.",
+    });
+
+    const spotlights = buildSpotlights(analyticsLogs);
+    renderSpotlightList(eventHotFive, spotlights.eventTypes.top, {
+        emptyMessage: "No trucks reached five hotspot events within an hour window.",
+        tone: "event",
+    });
+    renderSpotlightList(eventHotThree, spotlights.eventTypes.mid, {
+        emptyMessage: "No trucks reached three hotspot events within an hour window.",
+        tone: "event",
+    });
+    renderSpotlightList(validationHotFive, spotlights.validationTypes.top, {
+        emptyMessage: "No trucks reached five hotspot validations within an hour window.",
+        tone: "validation",
+    });
+    renderSpotlightList(validationHotThree, spotlights.validationTypes.mid, {
+        emptyMessage: "No trucks reached three hotspot validations within an hour window.",
+        tone: "validation",
+    });
+
+    currentFluctuationClusters = renderFluctuations(analyticsLogs, fluctuationContainer);
+    updateFluctuationExportButton(fluctuationExportButton, currentFluctuationClusters);
+
+    if (announce) {
+        showControlToast(storageError ? "Unable to refresh control center" : "Control center refreshed");
+    }
+
+    if (showLoading && refreshButton) {
+        refreshButton.disabled = false;
+        refreshButton.classList.remove("spinning");
+    }
+
+    if (storageError) {
+        console.warn("Failed to load control data", storageError);
+    }
 }
 
 function setupCardCollapses() {
@@ -187,6 +264,78 @@ function normalizeLog(log) {
     normalized.timestampMs = Number.isFinite(timestampMs) ? timestampMs : NaN;
 
     return normalized;
+}
+
+
+function readSiteHealthConfig() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get({ siteHealthCheckMinutes: 10 }, (data) => {
+            const minutes = Math.max(1, Number.parseFloat(data.siteHealthCheckMinutes) || 10);
+            resolve(minutes);
+        });
+    });
+}
+
+function measureLatencyForHost(host) {
+    if (!host) {
+        return Promise.resolve({ status: "unknown", latencyMs: NaN });
+    }
+
+    const targetUrl = `https://${host}/favicon.ico?qaassist=${Date.now()}`;
+    const start = performance.now();
+    return fetch(targetUrl, { method: "HEAD", mode: "no-cors", cache: "no-store" })
+        .then(() => ({ status: "healthy", latencyMs: Math.round(performance.now() - start) }))
+        .catch(() => ({ status: "unreachable", latencyMs: NaN }));
+}
+
+async function getSiteHealthStats(entries) {
+    const minutes = await readSiteHealthConfig();
+    const refreshMs = minutes * 60 * 1000;
+
+    const cache = await new Promise((resolve) => {
+        chrome.storage.local.get({ siteLatencyCache: {} }, (data) => resolve(data.siteLatencyCache || {}));
+    });
+
+    const updates = { ...cache };
+    await Promise.all(entries.map(async (entry) => {
+        if (!entry.host) {
+            return;
+        }
+        const key = entry.host.toLowerCase();
+        const cached = updates[key];
+        const stale = !cached || !cached.checkedAt || (Date.now() - cached.checkedAt) > refreshMs;
+        if (!stale) {
+            entry.siteHealth = cached;
+            return;
+        }
+
+        const measured = await measureLatencyForHost(entry.host);
+        const record = {
+            status: measured.status,
+            latencyMs: Number.isFinite(measured.latencyMs) ? measured.latencyMs : null,
+            checkedAt: Date.now(),
+        };
+        updates[key] = record;
+        entry.siteHealth = record;
+    }));
+
+    chrome.storage.local.set({ siteLatencyCache: updates });
+
+    entries.forEach((entry) => {
+        if (!entry.siteHealth && entry.host) {
+            entry.siteHealth = updates[entry.host.toLowerCase()] || null;
+        }
+    });
+}
+
+function getHealthText(siteHealth) {
+    if (!siteHealth) {
+        return "Latency: pending";
+    }
+    if (siteHealth.status !== "healthy") {
+        return "Latency: unavailable";
+    }
+    return `Latency: ${siteHealth.latencyMs ?? "—"} ms`;
 }
 
 function safeText(value) {
@@ -245,6 +394,7 @@ function parseLocalDateTime(text) {
     const patterns = [
         /^(?<month>\d{1,2})[\/\-](?<day>\d{1,2})[\/\-](?<year>\d{2,4})(?:\s+(?<hour>\d{1,2}):(?<minute>\d{2})(?::(?<second>\d{2}))?\s*(?<meridiem>AM|PM)?)?$/i,
         /^(?<year>\d{4})[\/\-](?<month>\d{1,2})[\/\-](?<day>\d{1,2})(?:\s+(?<hour>\d{1,2}):(?<minute>\d{2})(?::(?<second>\d{2}))?\s*(?<meridiem>AM|PM)?)?$/i,
+        /^(?<month>\d{1,2})[\/\-](?<day>\d{1,2})(?:\s+(?<hour>\d{1,2}):(?<minute>\d{2})(?::(?<second>\d{2}))?\s*(?<meridiem>AM|PM)?)?$/i,
     ];
 
     for (const pattern of patterns) {
@@ -256,7 +406,7 @@ function parseLocalDateTime(text) {
         const groups = match.groups || {};
         const monthNumber = Number(groups.month) - 1;
         const dayNumber = Number(groups.day);
-        let yearNumber = Number(groups.year);
+        let yearNumber = groups.year ? Number(groups.year) : new Date().getFullYear();
 
         if (groups.year && groups.year.length === 2) {
             yearNumber += yearNumber >= 70 ? 1900 : 2000;
@@ -296,7 +446,7 @@ function parseLocalDateTime(text) {
     return NaN;
 }
 
-function renderSiteStats(logs, container, summaryBadge) {
+async function renderSiteStats(logs, container, summaryBadge) {
     const siteMap = new Map();
 
     logs.forEach((log) => {
@@ -324,6 +474,7 @@ function renderSiteStats(logs, container, summaryBadge) {
     });
 
     const entries = Array.from(siteMap.values()).sort((a, b) => b.total - a.total);
+    await getSiteHealthStats(entries);
     summaryBadge.textContent = `${entries.length} site${entries.length === 1 ? "" : "s"}`;
 
     container.innerHTML = "";
@@ -356,6 +507,30 @@ function renderSiteStats(logs, container, summaryBadge) {
             meta.textContent = "No site URL recorded";
         }
 
+        const health = document.createElement("p");
+        health.className = "stat-meta";
+        health.textContent = `Site health: ${entry.siteHealth?.status || "unknown"} · ${getHealthText(entry.siteHealth)}`;
+
+        const uniqueDays = new Set(
+            logs
+                .filter((log) => (log.siteName || getHost(log.pageUrl) || "Unknown site") === entry.name)
+                .map((log) => {
+                    const time = getEventTime(log);
+                    if (!Number.isFinite(time)) {
+                        return "";
+                    }
+                    return new Date(time).toISOString().slice(0, 10);
+                })
+                .filter(Boolean),
+        );
+
+        const warning = document.createElement("p");
+        warning.className = "helper-text";
+        warning.textContent =
+            uniqueDays.size < 5
+                ? "Warning: Less than 5 distinct days of data; averages may be inaccurate."
+                : "Data confidence: 5+ distinct days captured.";
+
         const body = document.createElement("div");
         body.className = "stat-card-body";
 
@@ -364,6 +539,8 @@ function renderSiteStats(logs, container, summaryBadge) {
 
         card.appendChild(header);
         card.appendChild(meta);
+        card.appendChild(health);
+        card.appendChild(warning);
         card.appendChild(body);
 
         container.appendChild(card);
@@ -451,12 +628,10 @@ function buildFatigueWatchLists(logs) {
 }
 
 function buildIdentity(log) {
-    const operator = safeText(log.operatorName) || "Unknown operator";
     const truck = safeText(log.truckNumber) || "Unknown truck";
     const site = safeText(log.siteName) || getHost(log.pageUrl) || "Unknown site";
     return {
-        key: `${operator.toLowerCase()}|${truck.toLowerCase()}|${site.toLowerCase()}`,
-        operator,
+        key: `${truck.toLowerCase()}|${site.toLowerCase()}`,
         truck,
         site,
     };
@@ -514,8 +689,7 @@ function renderWatchList(container, entries, { emptyMessage }) {
             summary.innerHTML = `
                 <div class="watch-summary">
                     <div>
-                        <span class="watch-name">${entry.operator}</span>
-                        <span class="watch-meta">${entry.truck}</span>
+                        <span class="watch-name">${entry.truck}</span>
                     </div>
                     <div class="watch-meta">${entry.site}</div>
                 </div>
@@ -755,15 +929,11 @@ function renderSpotlightList(container, entries, { emptyMessage, tone }) {
         const nameDiv = document.createElement("div");
         nameDiv.className = "spotlight-name";
         nameDiv.textContent = entry.truck;
-        const operatorDiv = document.createElement("div");
-        operatorDiv.className = "spotlight-meta";
-        operatorDiv.textContent = entry.operator;
         const siteDiv = document.createElement("div");
         siteDiv.className = "spotlight-meta";
         siteDiv.textContent = entry.site;
         identity.appendChild(nameDiv);
-        identity.appendChild(operatorDiv);
-        identity.appendChild(siteDiv);
+                identity.appendChild(siteDiv);
 
         const headingAside = document.createElement("div");
         headingAside.className = "spotlight-header-aside";
@@ -991,39 +1161,50 @@ function buildFluctuationClusters(logs) {
 
     byTruck.forEach((bucket, truckKey) => {
         const sorted = bucket.events
-            .filter((event) => Number.isFinite(getEventTime(event)))
-            .sort((a, b) => getEventTime(a) - getEventTime(b));
-        let current = [];
+            .map((event) => ({ event, time: getEventTime(event) }))
+            .filter((entry) => Number.isFinite(entry.time))
+            .sort((a, b) => a.time - b.time);
 
-        sorted.forEach((event) => {
-            if (!current.length) {
-                current.push(event);
-                return;
+        let start = 0;
+        const windows = [];
+
+        for (let end = 0; end < sorted.length; end += 1) {
+            const endTime = sorted[end].time;
+            while (start < end && endTime - sorted[start].time > EVENT_FLUCTUATION_WINDOW) {
+                start += 1;
             }
-            const previous = current[current.length - 1];
-            if (getEventTime(event) - getEventTime(previous) <= EVENT_FLUCTUATION_WINDOW) {
-                current.push(event);
+
+            const count = end - start + 1;
+            if (count >= EVENT_FLUCTUATION_MIN_EVENTS) {
+                windows.push({ start, end });
+            }
+        }
+
+        if (!windows.length) {
+            return;
+        }
+
+        const merged = [];
+        windows.forEach((window) => {
+            const last = merged[merged.length - 1];
+            if (!last || window.start > last.end) {
+                merged.push({ ...window });
             } else {
-                if (current.length > 1) {
-                    clusters.push({
-                        truckNumber: safeText(current[0].truckNumber) || bucket.display || truckKey,
-                        start: getEventTime(current[0]),
-                        end: getEventTime(current[current.length - 1]),
-                        events: current.slice(),
-                    });
-                }
-                current = [event];
+                last.end = Math.max(last.end, window.end);
             }
         });
 
-        if (current.length > 1) {
-            clusters.push({
-                truckNumber: safeText(current[0].truckNumber) || bucket.display || truckKey,
-                start: getEventTime(current[0]),
-                end: getEventTime(current[current.length - 1]),
-                events: current.slice(),
-            });
-        }
+        merged.forEach((window) => {
+            const events = sorted.slice(window.start, window.end + 1).map((entry) => entry.event);
+            if (events.length >= EVENT_FLUCTUATION_MIN_EVENTS) {
+                clusters.push({
+                    truckNumber: safeText(events[0].truckNumber) || bucket.display || truckKey,
+                    start: getEventTime(events[0]),
+                    end: getEventTime(events[events.length - 1]),
+                    events,
+                });
+            }
+        });
     });
 
     return clusters.sort((a, b) => b.end - a.end);

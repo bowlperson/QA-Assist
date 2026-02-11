@@ -609,8 +609,73 @@ document.addEventListener("DOMContentLoaded", () => {
         return deduped;
     }
 
+    const EVENT_DB_NAME = "qaAssistEventLogs";
+    const EVENT_DB_VERSION = 1;
+    const EVENT_STORE = "eventLogs";
+
+    function openEventLogDb() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(EVENT_DB_NAME, EVENT_DB_VERSION);
+            request.onupgradeneeded = () => {
+                const db = request.result;
+                const store = db.objectStoreNames.contains(EVENT_STORE)
+                    ? request.transaction.objectStore(EVENT_STORE)
+                    : db.createObjectStore(EVENT_STORE, { keyPath: "id" });
+
+                if (!store.indexNames.contains("eventKey")) {
+                    store.createIndex("eventKey", "eventKey", { unique: false });
+                }
+                if (!store.indexNames.contains("timestampMs")) {
+                    store.createIndex("timestampMs", "timestampMs", { unique: false });
+                }
+                if (!store.indexNames.contains("siteName")) {
+                    store.createIndex("siteName", "siteName", { unique: false });
+                }
+            };
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error || new Error("Failed to open event DB"));
+        });
+    }
+
+    async function getAllEventLogsFromDb() {
+        const db = await openEventLogDb();
+        try {
+            return await new Promise((resolve, reject) => {
+                const tx = db.transaction(EVENT_STORE, "readonly");
+                const req = tx.objectStore(EVENT_STORE).getAll();
+                req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+                req.onerror = () => reject(req.error || new Error("Failed to read event logs"));
+            });
+        } finally {
+            db.close();
+        }
+    }
+
+    async function replaceAllEventLogsInDb(entries) {
+        const db = await openEventLogDb();
+        try {
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(EVENT_STORE, "readwrite");
+                const store = tx.objectStore(EVENT_STORE);
+                store.clear();
+                (entries || []).forEach((entry) => {
+                    if (entry && entry.id) {
+                        store.put(entry);
+                    }
+                });
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error || new Error("Failed writing logs"));
+                tx.onabort = () => reject(tx.error || new Error("Write aborted"));
+            });
+        } finally {
+            db.close();
+        }
+    }
+
     function saveLogs() {
-        chrome.storage.local.set({ eventLogs: logs });
+        replaceAllEventLogsInDb(logs).catch((error) => {
+            console.warn("Failed to persist event logs", error);
+        });
     }
 
     function formatDate(date) {
@@ -653,6 +718,59 @@ document.addEventListener("DOMContentLoaded", () => {
         return button;
     }
 
+    function createEditButton(log) {
+        const button = document.createElement("button");
+        button.className = "secondary";
+        button.textContent = "Edit";
+        button.title = "Edit truck, timestamp, event type, and validation";
+        button.addEventListener("click", () => {
+            const updatedTruck = window.prompt("Truck number", log.truckNumber || "");
+            if (updatedTruck === null) {
+                return;
+            }
+            const updatedEventType = window.prompt("Event type", log.eventType || "");
+            if (updatedEventType === null) {
+                return;
+            }
+            const updatedValidation = window.prompt("Validation type", getRawValidation(log) || "");
+            if (updatedValidation === null) {
+                return;
+            }
+            const updatedTimestamp = window.prompt("Timestamp", log.timestamp || "");
+            if (updatedTimestamp === null) {
+                return;
+            }
+
+            log.truckNumber = String(updatedTruck || "").trim();
+            log.eventType = String(updatedEventType || "").trim();
+            log.validationType = String(updatedValidation || "").trim();
+            log.validationTypeRaw = String(updatedValidation || "").trim();
+            log.callValidationType = String(updatedValidation || "").trim();
+            log.timestamp = String(updatedTimestamp || "").trim();
+            logs = deduplicateLogs(logs);
+            saveLogs();
+            updateDisplays(logs);
+            showToast("Log updated");
+        });
+        return button;
+    }
+
+    function createDeleteButton(log) {
+        const button = document.createElement("button");
+        button.className = "danger";
+        button.textContent = "Delete";
+        button.title = "Delete this event log";
+        button.addEventListener("click", () => {
+            openConfirmModal("Delete this log entry? This cannot be undone.", () => {
+                logs = logs.filter((entry) => entry.id !== log.id);
+                saveLogs();
+                updateDisplays(logs);
+                showToast("Log deleted");
+            });
+        });
+        return button;
+    }
+
     function copyTextWithToast(value, message) {
         const text = String(value || "").trim();
         if (!text) {
@@ -664,26 +782,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 showToast(message);
             }
         });
-    }
-
-    function createOperatorCell(name) {
-        const cell = document.createElement("td");
-        const text = String(name || "").trim();
-
-        if (!text) {
-            cell.textContent = "—";
-            return cell;
-        }
-
-        const truncated = text.length > 5 ? `${text.slice(0, 5)}…` : text;
-        const chip = document.createElement("span");
-        chip.className = "name-chip";
-        chip.dataset.tooltip = text;
-        chip.textContent = truncated;
-        chip.addEventListener("click", () => copyTextWithToast(text, "Operator copied"));
-
-        cell.appendChild(chip);
-        return cell;
     }
 
     function createSiteCell(log) {
@@ -787,8 +885,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const siteCell = createSiteCell(log);
 
-        const operatorCell = createOperatorCell(log.operatorName);
-
         const notesCell = document.createElement("td");
         notesCell.textContent = log.comment || "";
 
@@ -796,6 +892,8 @@ document.addEventListener("DOMContentLoaded", () => {
         actionsCell.classList.add("actions-cell");
         actionsCell.appendChild(createBookmarkButton(log));
         actionsCell.appendChild(createCallButton(log));
+        actionsCell.appendChild(createEditButton(log));
+        actionsCell.appendChild(createDeleteButton(log));
         actionsCell.appendChild(createOpenButton(log));
 
         row.appendChild(eventCell);
@@ -803,7 +901,6 @@ document.addEventListener("DOMContentLoaded", () => {
         row.appendChild(truckCell);
         row.appendChild(timestampCell);
         row.appendChild(siteCell);
-        row.appendChild(operatorCell);
         row.appendChild(notesCell);
         row.appendChild(actionsCell);
 
@@ -814,8 +911,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderLogRow(log) {
         const row = document.createElement("tr");
-
-        const operatorCell = createOperatorCell(log.operatorName);
 
         const eventTypeCell = document.createElement("td");
         const eventLabel = createToneLabel(log.eventType, "event");
@@ -845,9 +940,10 @@ document.addEventListener("DOMContentLoaded", () => {
         actionsCell.classList.add("actions-cell");
         actionsCell.appendChild(createBookmarkButton(log));
         actionsCell.appendChild(createCallButton(log));
+        actionsCell.appendChild(createEditButton(log));
+        actionsCell.appendChild(createDeleteButton(log));
         actionsCell.appendChild(createOpenButton(log));
 
-        row.appendChild(operatorCell);
         row.appendChild(eventTypeCell);
         row.appendChild(validationCell);
         row.appendChild(truckCell);
@@ -875,7 +971,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 log.pageUrl,
                 log.siteName,
                 log.eventId,
-                log.operatorName,
                 getRawValidation(log),
             ]
                 .filter(Boolean)
@@ -1476,10 +1571,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    chrome.storage.local.get({ eventLogs: [], pendingInstaLog: null }, (data) => {
-        const loadedLogs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
-        logs = deduplicateLogs(loadedLogs);
-        saveLogs();
+    chrome.storage.local.get({ eventLogs: [], pendingInstaLog: null }, async (data) => {
+        try {
+            const dbLogs = await getAllEventLogsFromDb();
+            let loadedLogs = Array.isArray(dbLogs) ? dbLogs : [];
+
+            if (!loadedLogs.length && Array.isArray(data.eventLogs) && data.eventLogs.length) {
+                loadedLogs = data.eventLogs;
+                logs = deduplicateLogs(loadedLogs);
+                saveLogs();
+                chrome.storage.local.remove("eventLogs");
+            } else {
+                logs = deduplicateLogs(loadedLogs);
+            }
+        } catch (error) {
+            console.warn("Failed to load event logs from IndexedDB", error);
+            const fallback = Array.isArray(data.eventLogs) ? data.eventLogs : [];
+            logs = deduplicateLogs(fallback);
+        }
+
         updateDisplays(logs);
         refreshValidationPreferences(validationVocabulary, validationFilterEnabled);
         if (data.pendingInstaLog) {

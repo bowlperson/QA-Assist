@@ -46,6 +46,7 @@ const STORAGE_MIGRATION_KEYS = [
     "keyDelay",
     "autoLoopDelay",
     "autoLoopHold",
+    "oasModeEnabled",
     "siteRules",
     "validationVocabulary",
     "validationFilterEnabled",
