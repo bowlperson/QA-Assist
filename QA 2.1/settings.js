@@ -56,6 +56,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const antiLagSeekInput = document.getElementById('antiLagSeek');
     const antiLagSeekContainer = document.getElementById('antiLagSeekContainer');
     const saveBtn = document.getElementById('saveSettings');
+    const notificationsEnabledInput = document.getElementById('notificationsEnabled');
+    const notificationModeInput = document.getElementById('notificationMode');
+    const notificationSoundEnabledInput = document.getElementById('notificationSoundEnabled');
+    const notificationVolumeInput = document.getElementById('notificationVolume');
+    const notificationVolumeLabel = document.getElementById('notificationVolumeLabel');
     const siteRulesContainer = document.getElementById('siteRulesContainer');
     const addSiteRuleBtn = document.getElementById('addSiteRule');
     const toast = document.getElementById('settingsToast');
@@ -579,33 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rulesContainer.appendChild(div);
     }
 
-    const collapseButtons = document.querySelectorAll('.collapse-toggle');
-
-    function updateCollapseButton(button, collapsed) {
-        if (!button) {
-            return;
-        }
-
-        button.textContent = collapsed ? '+' : '−';
-        button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-        button.setAttribute('aria-label', collapsed ? 'Expand section' : 'Collapse section');
-    }
-
-    collapseButtons.forEach((button) => {
-        const section = button.closest('.page-card');
-        const isCollapsed = section?.classList.contains('collapsed') ?? false;
-        updateCollapseButton(button, isCollapsed);
-
-        button.addEventListener('click', () => {
-            const host = button.closest('.page-card');
-            if (!host) {
-                return;
-            }
-
-            const nextState = host.classList.toggle('collapsed');
-            updateCollapseButton(button, nextState);
-        });
-    });
+    CardCollapseState?.initCardCollapseState?.('settings');
 
     addRuleBtn.addEventListener('click', () => createRuleRow());
     addSiteRuleBtn.addEventListener('click', () => createSiteRuleRow());
@@ -632,6 +611,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     smartSkipToggle.addEventListener('change', updateSkipEnabled);
+    if (notificationVolumeInput && notificationVolumeLabel) {
+        notificationVolumeInput.addEventListener('input', () => {
+            notificationVolumeLabel.textContent = `${Math.round(Number(notificationVolumeInput.value || 0) * 100)}%`;
+        });
+    }
     loopToggle.addEventListener('change', updateLoopEnabled);
     if (antiLagToggle) {
         antiLagToggle.addEventListener('change', updateAntiLagEnabled);
@@ -653,6 +637,10 @@ document.addEventListener('DOMContentLoaded', () => {
             antiLagEnabled: false,
             antiLagSeekSeconds: DEFAULT_ANTI_LAG_SEEK,
             dataKeywords: DEFAULT_DATA_KEYWORDS,
+            notificationsEnabled: true,
+            notificationMode: 'windows',
+            notificationSoundEnabled: true,
+            notificationVolume: 0.25,
         },
         (data) => {
         const rules = data.customSpeedRules;
@@ -691,6 +679,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dataKeywordListContainer) {
             dataKeywords.forEach((entry) => createDataKeywordRow(entry));
         }
+        if (notificationsEnabledInput) notificationsEnabledInput.checked = data.notificationsEnabled ?? true;
+        if (notificationModeInput) notificationModeInput.value = data.notificationMode === 'extension' ? 'extension' : 'windows';
+        if (notificationSoundEnabledInput) notificationSoundEnabledInput.checked = data.notificationSoundEnabled ?? true;
+        if (notificationVolumeInput) notificationVolumeInput.value = Number.isFinite(data.notificationVolume) ? data.notificationVolume : 0.25;
+        if (notificationVolumeLabel && notificationVolumeInput) notificationVolumeLabel.textContent = `${Math.round(Number(notificationVolumeInput.value) * 100)}%`;
         updateSkipEnabled();
         updateLoopEnabled();
         updateValidationEnabled();
@@ -769,6 +762,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const sanitizedDataKeywords = sanitizeDataKeywordsInput(dataKeywordEntries, { fallback: false });
         const validationFilterEnabled = validationFilterToggle ? validationFilterToggle.checked : true;
+        const notificationsEnabled = notificationsEnabledInput ? notificationsEnabledInput.checked : true;
+        const notificationMode = notificationModeInput?.value === 'extension' ? 'extension' : 'windows';
+        const notificationSoundEnabled = notificationSoundEnabledInput ? notificationSoundEnabledInput.checked : true;
+        const notificationVolume = Math.max(0, Math.min(1, Number(notificationVolumeInput?.value ?? 0.25) || 0));
 
         const siteRules = {};
         siteRulesContainer.querySelectorAll('.site-rule').forEach(div => {
@@ -807,6 +804,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 antiLagEnabled,
                 antiLagSeekSeconds,
                 dataKeywords: sanitizedDataKeywords,
+                notificationsEnabled,
+                notificationMode,
+                notificationSoundEnabled,
+                notificationVolume,
             },
             () => {
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -826,6 +827,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             antiLagEnabled,
                             antiLagSeekSeconds,
                             dataKeywords: sanitizedDataKeywords,
+                            notificationsEnabled,
+                            notificationMode,
+                            notificationSoundEnabled,
+                            notificationVolume,
                         });
                     }
                 });

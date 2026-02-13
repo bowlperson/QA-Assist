@@ -31,7 +31,7 @@
             </div>
         </header>
 
-        <section class="page-card" id="siteStatsCard">
+        <section class="page-card" id="siteStatsCard" data-collapse-id="siteStats">
             <div class="card-header">
                 <h2>Site stats</h2>
                 <div class="card-controls">
@@ -45,7 +45,7 @@
             </div>
         </section>
 
-        <section class="page-card" id="watchListCard">
+        <section class="page-card" id="watchListCard" data-collapse-id="watchList">
             <div class="card-header">
                 <h2>Truck watch list</h2>
                 <div class="card-controls">
@@ -76,7 +76,7 @@
             </div>
         </section>
 
-        <section class="page-card" id="spotlightsCard">
+        <section class="page-card" id="spotlightsCard" data-collapse-id="spotlights">
             <div class="card-header">
                 <h2>Technical spotlights</h2>
                 <div class="card-controls">
@@ -125,7 +125,7 @@
             </div>
         </section>
 
-        <section class="page-card" id="dataCenterCard">
+        <section class="page-card" id="dataCenterCard" data-collapse-id="dataCenter">
             <div class="card-header">
                 <h2>Data Center</h2>
                 <div class="card-controls">
@@ -161,7 +161,7 @@
             </div>
         </section>
 
-        <section class="page-card" id="fluctuationCard">
+        <section class="page-card" id="fluctuationCard" data-collapse-id="fluctuations">
             <div class="card-header">
                 <h2>Event fluctuations</h2>
                 <div class="card-controls">
@@ -178,6 +178,16 @@
 
     <div class="toast" id="controlToast" role="status" aria-live="polite"></div>
 
+    <div class="modal" id="dataCenterModal" aria-hidden="true">
+        <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="dataCenterModalTitle">
+            <button class="close-modal" id="closeDataCenterModal" title="Close">×</button>
+            <h2 id="dataCenterModalTitle">Data Center events</h2>
+            <div id="dataCenterModalMeta" class="subtitle"></div>
+            <ul id="dataCenterModalList" class="spotlight-events"></ul>
+        </div>
+    </div>
+
+    <script src="card-collapse-state.js"></script>
     <script src="event-log-db.js"></script>
     <script src="qa-control.js"></script>
 </body>

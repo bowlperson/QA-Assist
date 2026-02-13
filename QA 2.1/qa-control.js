@@ -64,12 +64,18 @@ let dataCenterSortDirectionInput = null;
 let saveDataCenterFiltersButton = null;
 let clearDataCenterFiltersButton = null;
 let dataCenterContainer = null;
+let dataCenterModal = null;
+let closeDataCenterModalButton = null;
+let dataCenterModalList = null;
+let dataCenterModalMeta = null;
 let fluctuationContainer = null;
 let fluctuationExportButton = null;
 let refreshButton = null;
 let currentFluctuationClusters = [];
 let controlToastElement = null;
 let controlToastTimeoutId = null;
+let activeDataCenterRows = [];
+let alertSoundSettings = { enabled: true, volume: 0.25 };
 let currentDataKeywords = sanitizeDataKeywords(DEFAULT_DATA_KEYWORDS);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -104,8 +110,12 @@ document.addEventListener("DOMContentLoaded", () => {
     fluctuationExportButton = document.getElementById("fluctuationExport");
     refreshButton = document.getElementById("controlRefresh");
     controlToastElement = document.getElementById("controlToast");
+    dataCenterModal = document.getElementById("dataCenterModal");
+    closeDataCenterModalButton = document.getElementById("closeDataCenterModal");
+    dataCenterModalList = document.getElementById("dataCenterModalList");
+    dataCenterModalMeta = document.getElementById("dataCenterModalMeta");
 
-    setupCardCollapses();
+    CardCollapseState?.initCardCollapseState?.("qaControl");
 
     if (fluctuationExportButton) {
         fluctuationExportButton.addEventListener("click", () => {
@@ -153,6 +163,17 @@ document.addEventListener("DOMContentLoaded", () => {
         clearDataCenterFiltersButton.addEventListener("click", () => clearFilters("dataCenter"));
     }
 
+    if (closeDataCenterModalButton) {
+        closeDataCenterModalButton.addEventListener("click", closeDataCenterEventsModal);
+    }
+    if (dataCenterModal) {
+        dataCenterModal.addEventListener("click", (event) => {
+            if (event.target === dataCenterModal) {
+                closeDataCenterEventsModal();
+            }
+        });
+    }
+
     loadControlData();
 });
 
@@ -166,6 +187,7 @@ function loadControlData(options = {}) {
 
     Promise.all([EventLogDB.getAll(), getControlConfig()]).then(([rawLogs, config]) => {
         currentDataKeywords = config.dataKeywords;
+        alertSoundSettings = { enabled: config.notificationSoundEnabled, volume: config.notificationVolume };
         const logs = deduplicateForAnalytics(rawLogs
             .map((log) => normalizeLog(log))
             .filter(Boolean))
@@ -223,7 +245,9 @@ function loadControlData(options = {}) {
         });
 
         const dataCenterLogs = filterLogsByRange(logs, dataCenterRangeStartInput?.value, dataCenterRangeEndInput?.value);
-        renderDataCenter(dataCenterLogs);
+        activeDataCenterRows = renderDataCenter(dataCenterLogs);
+
+        notifyOnNewAlerts(watchLists, spotlights, config);
 
         currentFluctuationClusters = renderFluctuations(logs, fluctuationContainer);
         updateFluctuationExportButton(fluctuationExportButton, currentFluctuationClusters);
@@ -247,28 +271,6 @@ function loadControlData(options = {}) {
             showControlToast("Unable to refresh control center");
         }
     });
-}
-
-function setupCardCollapses() {
-    const toggles = document.querySelectorAll(".page-card .collapse-toggle");
-    toggles.forEach((toggle) => {
-        const card = toggle.closest(".page-card");
-        if (!card) {
-            return;
-        }
-        const collapsed = card.classList.contains("collapsed");
-        updateCollapseToggle(toggle, collapsed);
-        toggle.addEventListener("click", () => {
-            const nextState = card.classList.toggle("collapsed");
-            updateCollapseToggle(toggle, nextState);
-        });
-    });
-}
-
-function updateCollapseToggle(button, collapsed) {
-    button.textContent = collapsed ? "+" : "−";
-    button.setAttribute("aria-expanded", collapsed ? "false" : "true");
-    button.setAttribute("aria-label", collapsed ? "Expand section" : "Collapse section");
 }
 
 function normalizeLog(log) {
@@ -309,7 +311,7 @@ function deduplicateForAnalytics(logs) {
         if (!key) {
             deduped.set(`${safeText(log.id)}|${safeText(log.createdAt)}|${fallbackIndex}`, log);
             fallbackIndex += 1;
-            return;
+            return [];
         }
 
         deduped.set(key, log);
@@ -353,8 +355,14 @@ function sanitizeDataKeywords(input) {
 
 function getControlConfig() {
     return new Promise((resolve) => {
-        chrome.storage.local.get({ dataKeywords: DEFAULT_DATA_KEYWORDS }, (data) => {
-            resolve({ dataKeywords: sanitizeDataKeywords(data.dataKeywords) });
+        chrome.storage.local.get({ dataKeywords: DEFAULT_DATA_KEYWORDS, notificationsEnabled: true, notificationMode: "windows", notificationSoundEnabled: true, notificationVolume: 0.25 }, (data) => {
+            resolve({
+                dataKeywords: sanitizeDataKeywords(data.dataKeywords),
+                notificationsEnabled: data.notificationsEnabled !== false,
+                notificationMode: data.notificationMode === "extension" ? "extension" : "windows",
+                notificationSoundEnabled: data.notificationSoundEnabled !== false,
+                notificationVolume: Math.max(0, Math.min(1, Number(data.notificationVolume ?? 0.25) || 0.25)),
+            });
         });
     });
 }
@@ -1016,7 +1024,7 @@ function renderSpotlightList(container, entries, { emptyMessage, tone, labelType
 
 function renderDataCenter(logs) {
     if (!dataCenterContainer) {
-        return;
+        return [];
     }
     const filterKey = safeText(dataCenterFilterInput?.value) || "criticalFatigue";
     const filterConfig = DATA_CENTER_FILTERS.find((entry) => entry.key === filterKey) || DATA_CENTER_FILTERS[0];
@@ -1044,6 +1052,8 @@ function renderDataCenter(logs) {
             search: filterConfig.label,
             count: sortedEvents.length,
             latestEvent: sortedEvents[0] || null,
+            events: sortedEvents,
+            filterKey: filterConfig.key,
         };
     });
 
@@ -1052,21 +1062,32 @@ function renderDataCenter(logs) {
     dataCenterContainer.innerHTML = "";
     if (!rows.length) {
         dataCenterContainer.innerHTML = '<p class="empty-state">No Data Center matches found.</p>';
-        return;
+        return [];
     }
 
     const table = document.createElement("table");
     table.className = "table";
     table.innerHTML = `<thead><tr><th>Truck #</th><th>Site</th><th>Search #</th><th>Date</th></tr></thead>`;
     const tbody = document.createElement("tbody");
-    rows.forEach((row) => {
+    rows.forEach((row, index) => {
         const tr = document.createElement("tr");
         const dateText = row.latestEvent ? getEventDisplayTime(row.latestEvent) : "—";
-        tr.innerHTML = `<td>${escapeHtml(row.truck)}</td><td>${escapeHtml(row.site)}</td><td>${escapeHtml(row.search)} · ${row.count}</td><td>${escapeHtml(dateText)}</td>`;
+        tr.innerHTML = `<td>${escapeHtml(row.truck)}</td><td>${escapeHtml(row.site)}</td><td><button type="button" class="link-button data-center-link" data-row-index="${index}">${escapeHtml(row.search)} · ${row.count}</button></td><td>${escapeHtml(dateText)}</td>`;
         tbody.appendChild(tr);
     });
     table.appendChild(tbody);
     dataCenterContainer.appendChild(table);
+
+    dataCenterContainer.querySelectorAll(".data-center-link").forEach((button) => {
+        button.addEventListener("click", () => {
+            const index = Number(button.dataset.rowIndex);
+            if (Number.isFinite(index) && rows[index]) {
+                openDataCenterEventsModal(rows[index]);
+            }
+        });
+    });
+
+    return rows;
 }
 
 function eventMatchesDataCenterFilter(log, filterConfig, keyword) {
@@ -1099,6 +1120,107 @@ function escapeHtml(value) {
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#39;");
+}
+
+
+function openDataCenterEventsModal(row) {
+    if (!dataCenterModal || !dataCenterModalList || !dataCenterModalMeta || !row) {
+        return;
+    }
+    dataCenterModalMeta.textContent = `${row.truck} · ${row.site} · ${row.search}`;
+    dataCenterModalList.innerHTML = "";
+    (Array.isArray(row.events) ? row.events : []).forEach((eventLog) => {
+        const item = document.createElement("li");
+        const timeSpan = document.createElement("span");
+        timeSpan.className = "event-time";
+        timeSpan.textContent = getEventDisplayTime(eventLog);
+        const eventSpan = document.createElement("span");
+        eventSpan.className = "event-type";
+        decorateLabel(eventSpan, eventLog.eventType, "event");
+        const validationSpan = document.createElement("span");
+        validationSpan.className = "event-validation";
+        decorateLabel(validationSpan, eventLog.callValidationType || eventLog.validationType, "validation");
+        item.append(timeSpan, eventSpan, validationSpan);
+        dataCenterModalList.appendChild(item);
+    });
+    dataCenterModal.classList.add("show");
+    dataCenterModal.setAttribute("aria-hidden", "false");
+}
+
+function closeDataCenterEventsModal() {
+    if (!dataCenterModal) {
+        return;
+    }
+    dataCenterModal.classList.remove("show");
+    dataCenterModal.setAttribute("aria-hidden", "true");
+}
+
+function notifyOnNewAlerts(watchLists, spotlights, config) {
+    if (!config.notificationsEnabled) {
+        return;
+    }
+    const alerts = [];
+    const pushAlerts = (entries, sourceLabel) => {
+        (Array.isArray(entries) ? entries : []).forEach((entry) => {
+            const key = `${sourceLabel}|${entry.truck}|${entry.site}|${entry.window?.start}|${entry.window?.end}|${entry.total}`;
+            alerts.push({
+                key,
+                source: sourceLabel,
+                title: `${sourceLabel}: ${entry.truck}`,
+                description: `${entry.site} · ${entry.total} alerts · ${formatRange(entry.window?.start, entry.window?.end)}`,
+            });
+        });
+    };
+
+    pushAlerts(watchLists?.withinOneHour, "Watch List");
+    pushAlerts(spotlights?.eventTypes?.top, "Technical Spotlight");
+    pushAlerts(spotlights?.validationTypes?.top, "Technical Spotlight");
+
+    if (!alerts.length) {
+        return;
+    }
+
+    if (config.notificationMode === "extension") {
+        showControlToast(alerts[0].description);
+    }
+
+    playNotificationSound();
+
+    chrome.runtime.sendMessage({ type: "qaControlAlerts", alerts, mode: config.notificationMode }, () => chrome.runtime.lastError);
+}
+
+function playNotificationSound() {
+    if (!alertSoundSettings.enabled) {
+        return;
+    }
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) {
+            return;
+        }
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        const tones = [
+            { frequency: 1175, duration: 0.12, delay: 0 },
+            { frequency: 880, duration: 0.14, delay: 0.09 },
+        ];
+        tones.forEach((tone) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(tone.frequency, now + tone.delay);
+            gain.gain.setValueAtTime(0.0001, now + tone.delay);
+            gain.gain.linearRampToValueAtTime(0.25 * alertSoundSettings.volume, now + tone.delay + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + tone.delay + tone.duration);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + tone.delay);
+            osc.stop(now + tone.delay + tone.duration);
+        });
+        setTimeout(() => ctx.close().catch(() => {}), 600);
+    } catch (error) {
+        // ignored
+    }
 }
 
 function renderFluctuations(logs, container) {
@@ -1511,6 +1633,12 @@ function showControlToast(message) {
         controlToastTimeoutId = null;
     }, 2200);
 }
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && dataCenterModal?.classList.contains("show")) {
+        closeDataCenterEventsModal();
+    }
+});
 
 function getHost(url) {
     const text = safeText(url);

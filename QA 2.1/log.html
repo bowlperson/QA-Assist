@@ -20,10 +20,10 @@
             </nav>
         </header>
 
-        <section class="page-card table-card" id="bookmarkSection">
+        <section class="page-card table-card" id="bookmarkSection" data-collapse-id="bookmarks">
             <div class="card-header">
                 <h2>Bookmarks</h2>
-                <span id="bookmarkCount" class="badge subtle">0 items</span>
+                <div class="card-controls"><span id="bookmarkCount" class="badge subtle">0 items</span><button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button></div>
             </div>
             <p class="helper-text">Bookmarked clips stay pinned for quick follow up and call prep.</p>
             <table>
@@ -43,10 +43,10 @@
             </table>
         </section>
 
-        <section class="page-card table-card">
+        <section class="page-card table-card" data-collapse-id="recentEvents">
             <div class="card-header">
                 <h2>Recent events</h2>
-                <span id="eventCount" class="badge subtle">0 items</span>
+                <div class="card-controls"><span id="eventCount" class="badge subtle">0 items</span><button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button></div>
             </div>
             <div class="controls">
                 <input type="text" id="filterInput" placeholder="Search by event, validation, truck, timestamp, site, or URL...">
@@ -188,6 +188,7 @@
         </div>
     </div>
 
+    <script src="card-collapse-state.js"></script>
     <script src="event-log-db.js"></script>
     <script src="log.js"></script>
 </body>

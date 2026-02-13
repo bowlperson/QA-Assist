@@ -124,11 +124,13 @@ chrome.runtime.onInstalled.addListener(() => {
     migrateSyncStorage();
     migrateDispatchName();
     initializeSiteDirectory();
+    chrome.storage.local.get({ pendingAlertCount: 0 }, (data) => setAlertBadge(Number(data.pendingAlertCount) || 0));
 });
 chrome.runtime.onStartup.addListener(() => {
     migrateSyncStorage();
     migrateDispatchName();
     initializeSiteDirectory();
+    chrome.storage.local.get({ pendingAlertCount: 0 }, (data) => setAlertBadge(Number(data.pendingAlertCount) || 0));
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -171,6 +173,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+
+    if (message.type === "qaControlAlerts") {
+        const incomingAlerts = Array.isArray(message.alerts) ? message.alerts : [];
+        chrome.storage.local.get({ notificationsEnabled: true, notificationMode: "windows", pendingAlertCount: 0, seenAlertKeys: [] }, (data) => {
+            if (data.notificationsEnabled === false || !incomingAlerts.length) {
+                sendResponse({ success: true, count: data.pendingAlertCount || 0 });
+                return;
+            }
+
+            const seenKeys = new Set(Array.isArray(data.seenAlertKeys) ? data.seenAlertKeys : []);
+            const newAlerts = incomingAlerts.filter((alert) => {
+                const key = typeof alert?.key === "string" ? alert.key : "";
+                return key && !seenKeys.has(key);
+            });
+
+            if (!newAlerts.length) {
+                sendResponse({ success: true, count: data.pendingAlertCount || 0, duplicate: true });
+                return;
+            }
+
+            newAlerts.forEach((alert) => seenKeys.add(alert.key));
+            const nextCount = (Number(data.pendingAlertCount) || 0) + newAlerts.length;
+            const seenAlertKeys = Array.from(seenKeys).slice(-500);
+            chrome.storage.local.set({ pendingAlertCount: nextCount, latestExtensionAlert: newAlerts[0]?.description || "", seenAlertKeys }, () => {
+                setAlertBadge(nextCount);
+                const mode = message.mode === "extension" ? "extension" : (data.notificationMode === "extension" ? "extension" : "windows");
+                if (mode === "windows") {
+                    newAlerts.forEach((alert) => createWindowsNotification(alert));
+                }
+                sendResponse({ success: true, count: nextCount, added: newAlerts.length });
+            });
+        });
+        return true;
+    }
+
+    if (message.type === "clearAlertBadge") {
+        chrome.storage.local.set({ pendingAlertCount: 0 }, () => {
+            setAlertBadge(0);
+            sendResponse({ success: true });
+        });
+        return true;
+    }
     if (message.type === "setEnabledState") {
         if (enabledStateController) {
             enabledStateController
@@ -211,6 +255,31 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
         enabledStateController.handleStorageChange(changes, areaName);
     }
 });
+
+
+function setAlertBadge(count) {
+    if (!actionApi || typeof actionApi.setBadgeText !== "function") {
+        return;
+    }
+    const text = count > 0 ? String(Math.min(count, 99)) : "";
+    actionApi.setBadgeText({ text });
+    if (typeof actionApi.setBadgeBackgroundColor === "function") {
+        actionApi.setBadgeBackgroundColor({ color: "#d93025" });
+    }
+}
+
+function createWindowsNotification(alert) {
+    if (!chrome.notifications || typeof chrome.notifications.create !== "function") {
+        return;
+    }
+    chrome.notifications.create(`qa-alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`, {
+        type: "basic",
+        iconUrl: "icon.png",
+        title: alert.title || "QA Assist alert",
+        message: alert.description || "New QA Assist alert.",
+        priority: 1,
+    });
+}
 
 function migrateSyncStorage() {
     if (!chrome.storage || !chrome.storage.sync || typeof chrome.storage.sync.get !== "function") {

@@ -12,7 +12,8 @@
     "permissions": [
         "tabs",
         "storage",
-        "activeTab"
+        "activeTab",
+        "notifications"
     ],
     "host_permissions": [
         "*://*/*"

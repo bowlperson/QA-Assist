@@ -1,6 +1,7 @@
 // Enhanced log.js for QA Assist
 
 document.addEventListener("DOMContentLoaded", () => {
+    CardCollapseState?.initCardCollapseState?.("eventLog");
     const logTableBody = document.getElementById("logTableBody");
     const bookmarkBody = document.getElementById("bookmarkBody");
     const clearLogsButton = document.getElementById("clearLogs");
