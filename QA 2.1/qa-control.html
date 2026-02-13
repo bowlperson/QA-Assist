@@ -53,14 +53,18 @@
                 </div>
             </div>
             <div class="card-body">
-                <p class="helper-text">Trucks with three or more fatigue validations in the same window are flagged below. Duplicates are ignored for trend calculations.</p>
+                <p class="helper-text">Trucks with 3+ fatigue alerts inside a rolling one-hour window. Groups include every alert in that hour and are shown as separate clusters.</p>
+                <div class="section-range-controls">
+                    <label>From <input type="datetime-local" id="watchRangeStart"></label>
+                    <label>To <input type="datetime-local" id="watchRangeEnd"></label>
+                </div>
                 <div class="watch-columns">
                     <div class="watch-column">
                         <h3>3+ fatigue events within 1 hour</h3>
                         <div id="watchListOneHour" class="watch-list"></div>
                     </div>
                     <div class="watch-column">
-                        <h3>3+ fatigue events within 2 hours</h3>
+                        <h3>3+ fatigue events within 2 hours (cluster view)</h3>
                         <div id="watchListTwoHour" class="watch-list"></div>
                     </div>
                 </div>
@@ -75,7 +79,11 @@
                 </div>
             </div>
             <div class="card-body">
-                <p class="helper-text">Highlights trucks with repeated technical alerts inside the same hour window. Duplicate rows are ignored.</p>
+                <p class="helper-text">Highlights trucks with repeated technical alerts in one-hour clusters (minimum 5 alerts). Duplicate rows are ignored.</p>
+                <div class="section-range-controls">
+                    <label>From <input type="datetime-local" id="spotlightRangeStart"></label>
+                    <label>To <input type="datetime-local" id="spotlightRangeEnd"></label>
+                </div>
                 <div class="spotlight-sections">
                     <div class="spotlight-block">
                         <h3>Event type hotspots</h3>

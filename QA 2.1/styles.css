@@ -1108,6 +1108,30 @@ button.primary:focus-visible {
     color: var(--muted);
 }
 
+
+.section-range-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0 14px;
+}
+
+.section-range-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.section-range-controls input {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 6px 8px;
+}
+
 .watch-columns {
     display: grid;
     gap: 18px;

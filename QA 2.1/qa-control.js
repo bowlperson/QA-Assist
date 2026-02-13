@@ -21,10 +21,14 @@ let siteStatsContainer = null;
 let siteStatsSummary = null;
 let watchListOneHour = null;
 let watchListTwoHour = null;
+let watchRangeStartInput = null;
+let watchRangeEndInput = null;
 let eventHotFive = null;
 let eventHotThree = null;
 let validationHotFive = null;
 let validationHotThree = null;
+let spotlightRangeStartInput = null;
+let spotlightRangeEndInput = null;
 let fluctuationContainer = null;
 let fluctuationExportButton = null;
 let refreshButton = null;
@@ -37,10 +41,14 @@ document.addEventListener("DOMContentLoaded", () => {
     siteStatsSummary = document.getElementById("siteStatsSummary");
     watchListOneHour = document.getElementById("watchListOneHour");
     watchListTwoHour = document.getElementById("watchListTwoHour");
+    watchRangeStartInput = document.getElementById("watchRangeStart");
+    watchRangeEndInput = document.getElementById("watchRangeEnd");
     eventHotFive = document.getElementById("eventHotFive");
     eventHotThree = document.getElementById("eventHotThree");
     validationHotFive = document.getElementById("validationHotFive");
     validationHotThree = document.getElementById("validationHotThree");
+    spotlightRangeStartInput = document.getElementById("spotlightRangeStart");
+    spotlightRangeEndInput = document.getElementById("spotlightRangeEnd");
     fluctuationContainer = document.getElementById("fluctuationContainer");
     fluctuationExportButton = document.getElementById("fluctuationExport");
     refreshButton = document.getElementById("controlRefresh");
@@ -59,6 +67,12 @@ document.addEventListener("DOMContentLoaded", () => {
             loadControlData({ announce: true, showLoading: true });
         });
     }
+
+    [watchRangeStartInput, watchRangeEndInput, spotlightRangeStartInput, spotlightRangeEndInput].forEach((input) => {
+        if (input) {
+            input.addEventListener("change", () => loadControlData({ showLoading: true }));
+        }
+    });
 
     loadControlData();
 });
@@ -93,7 +107,9 @@ function loadControlData(options = {}) {
             });
 
         renderSiteStats(logs, siteStatsContainer, siteStatsSummary);
-        const watchLists = buildFatigueWatchLists(logs);
+
+        const watchFilteredLogs = filterLogsByRange(logs, watchRangeStartInput?.value, watchRangeEndInput?.value);
+        const watchLists = buildFatigueWatchLists(watchFilteredLogs);
         renderWatchList(watchListOneHour, watchLists.withinOneHour, {
             emptyMessage: "No trucks have three fatigue events within one hour.",
         });
@@ -101,7 +117,8 @@ function loadControlData(options = {}) {
             emptyMessage: "No trucks have three fatigue events within two hours.",
         });
 
-        const spotlights = buildSpotlights(logs);
+        const spotlightFilteredLogs = filterLogsByRange(logs, spotlightRangeStartInput?.value, spotlightRangeEndInput?.value);
+        const spotlights = buildSpotlights(spotlightFilteredLogs);
         renderSpotlightList(eventHotFive, spotlights.eventTypes.top, {
             emptyMessage: "No trucks reached five hotspot events within an hour window.",
             tone: "event",
@@ -219,6 +236,39 @@ function safeText(value) {
     return String(value).trim();
 }
 
+
+function parseRangeInput(value) {
+    const raw = safeText(value);
+    if (!raw) {
+        return NaN;
+    }
+
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function filterLogsByRange(logs, startValue, endValue) {
+    const startMs = parseRangeInput(startValue);
+    const endMs = parseRangeInput(endValue);
+
+    if (!Number.isFinite(startMs) && !Number.isFinite(endMs)) {
+        return Array.isArray(logs) ? logs : [];
+    }
+
+    return (Array.isArray(logs) ? logs : []).filter((log) => {
+        const eventTime = getEventTime(log);
+        if (!Number.isFinite(eventTime)) {
+            return false;
+        }
+        if (Number.isFinite(startMs) && eventTime < startMs) {
+            return false;
+        }
+        if (Number.isFinite(endMs) && eventTime > endMs) {
+            return false;
+        }
+        return true;
+    });
+}
 function deriveValidation(log) {
     const candidates = [
         log.callValidationType,
@@ -438,37 +488,10 @@ function buildCountList(map, label, { tone } = {}) {
 }
 
 function buildFatigueWatchLists(logs) {
-    const groups = new Map();
+    const groups = groupLogsByIdentity(logs, (log) => isFatigueValidation(log.callValidationType || log.validationType));
 
-    logs.forEach((log) => {
-        if (!isFatigueValidation(log.callValidationType || log.validationType)) {
-            return;
-        }
-        const identity = buildIdentity(log);
-        if (!groups.has(identity.key)) {
-            groups.set(identity.key, { ...identity, events: [] });
-        }
-        groups.get(identity.key).events.push(log);
-    });
-
-    const withinOneHour = [];
-    const withinTwoHours = [];
-
-    groups.forEach((entry) => {
-        entry.events.sort((a, b) => getEventTime(a) - getEventTime(b));
-        const timeline = entry.events.filter((event) => Number.isFinite(getEventTime(event)));
-        const oneHourWindow = findWindow(timeline, FATIGUE_WINDOW_ONE_HOUR);
-        if (oneHourWindow) {
-            const windowEvents = timeline.slice(oneHourWindow.startIndex, oneHourWindow.endIndex + 1);
-            withinOneHour.push({ ...entry, events: windowEvents, window: oneHourWindow });
-            return;
-        }
-        const twoHourWindow = findWindow(timeline, FATIGUE_WINDOW_TWO_HOURS);
-        if (twoHourWindow) {
-            const windowEvents = timeline.slice(twoHourWindow.startIndex, twoHourWindow.endIndex + 1);
-            withinTwoHours.push({ ...entry, events: windowEvents, window: twoHourWindow });
-        }
-    });
+    const withinOneHour = buildClusterEntries(groups, FATIGUE_WINDOW_ONE_HOUR, 3, (event) => event.callValidationType || event.validationType);
+    const withinTwoHours = buildClusterEntries(groups, FATIGUE_WINDOW_TWO_HOURS, 3, (event) => event.callValidationType || event.validationType);
 
     return { withinOneHour, withinTwoHours };
 }
@@ -483,279 +506,124 @@ function buildIdentity(log) {
     };
 }
 
-function findWindow(events, windowSize) {
-    if (!events.length) {
-        return null;
-    }
-    let start = 0;
-    for (let end = 0; end < events.length; end += 1) {
-        const endTime = getEventTime(events[end]);
-        if (!Number.isFinite(endTime)) {
-            continue;
-        }
-        while (start < end && endTime - getEventTime(events[start]) > windowSize) {
-            start += 1;
-        }
-        if (end - start + 1 >= 3) {
-            return {
-                startIndex: start,
-                endIndex: end,
-                startTime: getEventTime(events[start]),
-                endTime,
-                count: end - start + 1,
-            };
-        }
-    }
-    return null;
-}
+function groupLogsByIdentity(logs, predicate) {
+    const groups = new Map();
 
-function renderWatchList(container, entries, { emptyMessage }) {
-    container.innerHTML = "";
-    if (!entries.length) {
-        container.innerHTML = `<p class="empty-state">${emptyMessage}</p>`;
-        return;
-    }
-
-    entries
-        .sort((a, b) => b.window.endTime - a.window.endTime)
-        .forEach((entry) => {
-            const details = document.createElement("details");
-            details.className = "watch-entry";
-
-            const summary = document.createElement("summary");
-            const totalEvents = entry.window?.count || entry.events.length;
-            let windowText = "Unknown window";
-            if (entry.events.length) {
-                const firstEvent = entry.events[0];
-                const lastEvent = entry.events[entry.events.length - 1];
-                windowText = `${getEventDisplayTime(firstEvent)} – ${getEventDisplayTime(lastEvent)}`;
-            } else if (entry.window) {
-                windowText = formatRange(entry.window.startTime, entry.window.endTime);
-            }
-            summary.innerHTML = `
-                <div class="watch-summary">
-                    <div>
-                        <span class="watch-name">${entry.truck}</span>
-                    </div>
-                    <div class="watch-meta">${entry.site}</div>
-                </div>
-                <div class="watch-window">${windowText} · ${totalEvents} event${totalEvents === 1 ? "" : "s"}</div>
-            `;
-            details.appendChild(summary);
-
-            const filterRow = document.createElement("div");
-            filterRow.className = "watch-filters";
-
-            const validationSelect = document.createElement("select");
-            const validationOptions = [""].concat(
-                Array.from(new Set(entry.events.map((event) => event.callValidationType || event.validationType).filter(Boolean))).sort(),
-            );
-            validationOptions.forEach((value) => {
-                const option = document.createElement("option");
-                option.value = value;
-                option.textContent = value || "All validations";
-                validationSelect.appendChild(option);
-            });
-
-            const eventSelect = document.createElement("select");
-            const eventOptions = [""].concat(
-                Array.from(new Set(entry.events.map((event) => event.eventType).filter(Boolean))).sort(),
-            );
-            eventOptions.forEach((value) => {
-                const option = document.createElement("option");
-                option.value = value;
-                option.textContent = value || "All event types";
-                eventSelect.appendChild(option);
-            });
-
-            filterRow.appendChild(validationSelect);
-            filterRow.appendChild(eventSelect);
-            details.appendChild(filterRow);
-
-            const list = document.createElement("ul");
-            list.className = "watch-events";
-            details.appendChild(list);
-
-            const render = () => {
-                const validationFilter = validationSelect.value;
-                const eventFilter = eventSelect.value;
-                list.innerHTML = "";
-                entry.events
-                    .filter((event) => {
-                        if (validationFilter && (event.callValidationType || event.validationType) !== validationFilter) {
-                            return false;
-                        }
-                        if (eventFilter && event.eventType !== eventFilter) {
-                            return false;
-                        }
-                        return true;
-                    })
-                    .forEach((event) => {
-                        const item = document.createElement("li");
-
-                        const timeSpan = document.createElement("span");
-                        timeSpan.className = "event-time";
-                        timeSpan.textContent = getEventDisplayTime(event);
-
-                        const eventSpan = document.createElement("span");
-                        eventSpan.className = "event-type";
-                        decorateLabel(eventSpan, event.eventType, "event");
-
-                        const validationSpan = document.createElement("span");
-                        validationSpan.className = "event-validation";
-                        decorateLabel(
-                            validationSpan,
-                            event.callValidationType || event.validationType,
-                            "validation",
-                        );
-
-                        item.appendChild(timeSpan);
-                        item.appendChild(eventSpan);
-                        item.appendChild(validationSpan);
-
-                        list.appendChild(item);
-                    });
-
-                if (!list.children.length) {
-                    const empty = document.createElement("li");
-                    empty.className = "empty-row";
-                    empty.textContent = "No events match the selected filters.";
-                    list.appendChild(empty);
-                }
-            };
-
-            validationSelect.addEventListener("change", render);
-            eventSelect.addEventListener("change", render);
-            render();
-
-            container.appendChild(details);
-        });
-}
-
-function buildSpotlights(logs) {
-    const grouped = new Map();
-
-    logs.forEach((log) => {
-        const eventTime = getEventTime(log);
-        if (!Number.isFinite(eventTime)) {
+    (Array.isArray(logs) ? logs : []).forEach((log) => {
+        if (typeof predicate === "function" && !predicate(log)) {
             return;
         }
 
         const identity = buildIdentity(log);
-        if (!grouped.has(identity.key)) {
-            grouped.set(identity.key, { ...identity, events: [] });
+        if (!groups.has(identity.key)) {
+            groups.set(identity.key, { ...identity, events: [] });
         }
 
-        grouped.get(identity.key).events.push({ log, time: eventTime });
+        groups.get(identity.key).events.push(log);
     });
 
-    const eventTypeEntries = [];
-    const validationEntries = [];
-
-    grouped.forEach((entry) => {
-        entry.events.sort((a, b) => a.time - b.time);
-
-        const eventWindow = findSpotlightWindow(
-            entry.events,
-            SPOTLIGHT_WINDOW,
-            (item) => item.log.eventType,
-            (label) => isSpotlightEventType(label),
-        );
-        if (eventWindow && eventWindow.total >= 3) {
-            eventTypeEntries.push({
-                truck: entry.truck,
-                site: entry.site,
-                total: eventWindow.total,
-                latest: eventWindow.endTime,
-                breakdown: eventWindow.breakdown,
-                window: { start: eventWindow.startTime, end: eventWindow.endTime },
-                events: (eventWindow.events || []).map((item) => item.log),
-            });
-        }
-
-        const validationWindow = findSpotlightWindow(
-            entry.events,
-            SPOTLIGHT_WINDOW,
-            (item) => item.log.callValidationType || item.log.validationType,
-            (label) => isSpotlightValidation(label),
-        );
-        if (validationWindow && validationWindow.total >= 3) {
-            validationEntries.push({
-                truck: entry.truck,
-                site: entry.site,
-                total: validationWindow.total,
-                latest: validationWindow.endTime,
-                breakdown: validationWindow.breakdown,
-                window: { start: validationWindow.startTime, end: validationWindow.endTime },
-                events: (validationWindow.events || []).map((item) => item.log),
-            });
-        }
-    });
-
-    return {
-        eventTypes: splitSpotlights(eventTypeEntries),
-        validationTypes: splitSpotlights(validationEntries),
-    };
+    return groups;
 }
 
-function findSpotlightWindow(events, windowSize, labelResolver, predicate) {
-    const timeline = events
-        .map((entry) => {
-            const label = safeText(labelResolver(entry));
-            return { ...entry, label };
-        })
-        .filter((entry) => predicate(entry.label));
+function findClusterWindows(events, windowSize, minCount) {
+    const timeline = (Array.isArray(events) ? events : [])
+        .filter((event) => Number.isFinite(getEventTime(event)))
+        .sort((a, b) => getEventTime(a) - getEventTime(b));
 
-    if (!timeline.length) {
-        return null;
-    }
-
+    const clusters = [];
     let start = 0;
-    const counts = new Map();
-    let best = null;
 
-    for (let end = 0; end < timeline.length; end += 1) {
-        const current = timeline[end];
-        const label = current.label || "—";
-        counts.set(label, (counts.get(label) || 0) + 1);
-
-        while (start <= end && current.time - timeline[start].time > windowSize) {
-            const startLabel = timeline[start].label || "—";
-            const updated = (counts.get(startLabel) || 0) - 1;
-            if (updated <= 0) {
-                counts.delete(startLabel);
-            } else {
-                counts.set(startLabel, updated);
-            }
-            start += 1;
+    while (start < timeline.length) {
+        let end = start;
+        while (end + 1 < timeline.length && getEventTime(timeline[end + 1]) - getEventTime(timeline[start]) <= windowSize) {
+            end += 1;
         }
 
-        const total = end - start + 1;
-        if (!best || total > best.total || (total === best.total && current.time > best.endTime)) {
-            best = {
-                total,
-                startIndex: start,
-                endIndex: end,
-                startTime: timeline[start].time,
-                endTime: current.time,
-                breakdown: new Map(counts),
-                events: timeline.slice(start, end + 1),
-            };
+        const windowEvents = timeline.slice(start, end + 1);
+        if (windowEvents.length >= minCount) {
+            clusters.push({
+                events: windowEvents,
+                start: getEventTime(windowEvents[0]),
+                end: getEventTime(windowEvents[windowEvents.length - 1]),
+                count: windowEvents.length,
+            });
         }
+
+        start = end + 1;
     }
 
-    return best;
+    return clusters;
 }
 
-function splitSpotlights(entries) {
-    const sorted = [...entries].sort((a, b) => b.total - a.total || b.latest - a.latest);
+function buildClusterEntries(groups, windowSize, minCount, labelResolver) {
+    const entries = [];
+
+    groups.forEach((group) => {
+        const clusters = findClusterWindows(group.events, windowSize, minCount);
+        clusters.forEach((cluster) => {
+            const breakdown = new Map();
+            cluster.events.forEach((event) => {
+                const label = safeText(labelResolver ? labelResolver(event) : event.eventType) || "—";
+                breakdown.set(label, (breakdown.get(label) || 0) + 1);
+            });
+
+            entries.push({
+                truck: group.truck,
+                site: group.site,
+                total: cluster.count,
+                latest: cluster.end,
+                breakdown,
+                window: { start: cluster.start, end: cluster.end },
+                events: cluster.events,
+            });
+        });
+    });
+
+    return entries.sort((a, b) => b.latest - a.latest || b.total - a.total);
+}
+
+function renderWatchList(container, entries, { emptyMessage }) {
+    renderSpotlightList(container, entries, {
+        emptyMessage,
+        tone: "validation",
+        labelType: "watch",
+    });
+}
+
+function buildSpotlights(logs) {
+    const grouped = groupLogsByIdentity(logs, () => true);
+
+    const eventEntries = buildClusterEntries(
+        grouped,
+        SPOTLIGHT_WINDOW,
+        3,
+        (event) => event.eventType,
+    ).filter((entry) =>
+        entry.events.some((event) => isSpotlightEventType(event.eventType)),
+    );
+
+    const validationEntries = buildClusterEntries(
+        grouped,
+        SPOTLIGHT_WINDOW,
+        3,
+        (event) => event.callValidationType || event.validationType,
+    ).filter((entry) =>
+        entry.events.some((event) => isSpotlightValidation(event.callValidationType || event.validationType)),
+    );
+
     return {
-        top: sorted.filter((entry) => entry.total >= 5),
-        mid: sorted.filter((entry) => entry.total >= 3 && entry.total < 5),
+        eventTypes: {
+            top: eventEntries.filter((entry) => entry.total >= 5),
+            mid: eventEntries.filter((entry) => entry.total >= 3 && entry.total < 5),
+        },
+        validationTypes: {
+            top: validationEntries.filter((entry) => entry.total >= 5),
+            mid: validationEntries.filter((entry) => entry.total >= 3 && entry.total < 5),
+        },
     };
 }
 
-function renderSpotlightList(container, entries, { emptyMessage, tone }) {
+function renderSpotlightList(container, entries, { emptyMessage, tone, labelType = "spotlight" }) {
     container.innerHTML = "";
     if (!entries.length) {
         container.innerHTML = `<p class="empty-state">${emptyMessage}</p>`;
@@ -783,7 +651,7 @@ function renderSpotlightList(container, entries, { emptyMessage, tone }) {
         headingAside.className = "spotlight-header-aside";
         const badge = document.createElement("span");
         badge.className = "badge subtle";
-        badge.textContent = `${entry.total} alert${entry.total === 1 ? "" : "s"}`;
+        badge.textContent = `${entry.total} ${entry.total === 1 ? "Alert" : "Alerts"}`;
         headingAside.appendChild(badge);
 
         const events = Array.isArray(entry.events) ? entry.events.filter(Boolean) : [];
@@ -814,10 +682,8 @@ function renderSpotlightList(container, entries, { emptyMessage, tone }) {
                 countSpan.textContent = count;
                 if (tone === "event") {
                     decorateLabel(labelSpan, label, "event");
-                } else if (tone === "validation") {
-                    decorateLabel(labelSpan, label, "validation");
                 } else {
-                    labelSpan.textContent = label;
+                    decorateLabel(labelSpan, label, "validation");
                 }
                 item.appendChild(labelSpan);
                 item.appendChild(countSpan);
@@ -845,11 +711,7 @@ function renderSpotlightList(container, entries, { emptyMessage, tone }) {
 
                 const validationSpan = document.createElement("span");
                 validationSpan.className = "event-validation";
-                decorateLabel(
-                    validationSpan,
-                    eventLog.callValidationType || eventLog.validationType,
-                    "validation",
-                );
+                decorateLabel(validationSpan, eventLog.callValidationType || eventLog.validationType, "validation");
 
                 item.appendChild(timeSpan);
                 item.appendChild(eventSpan);
@@ -865,7 +727,8 @@ function renderSpotlightList(container, entries, { emptyMessage, tone }) {
         footer.className = "spotlight-footer";
         const rangeText = entry.window ? formatRange(entry.window.start, entry.window.end) : "";
         const relativeText = formatRelative(entry.latest);
-        footer.textContent = rangeText ? `${rangeText} · ${relativeText}` : relativeText;
+        const labelText = labelType === "watch" ? "Fatigue cluster" : "Technical cluster";
+        footer.textContent = rangeText ? `${labelText} · ${rangeText} · ${relativeText}` : `${labelText} · ${relativeText}`;
 
         card.appendChild(heading);
         card.appendChild(body);
@@ -891,9 +754,7 @@ function renderSpotlightList(container, entries, { emptyMessage, tone }) {
             };
 
             card.addEventListener("click", (event) => {
-                const interactiveTarget = event.target.closest(
-                    "a, button, select, input, textarea, label",
-                );
+                const interactiveTarget = event.target.closest("a, button, select, input, textarea, label");
                 if (interactiveTarget) {
                     return;
                 }
