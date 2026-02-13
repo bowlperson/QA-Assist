@@ -4,17 +4,37 @@ const EVENT_FLUCTUATION_WINDOW = 60 * 1000;
 const EVENT_FLUCTUATION_MIN_EVENTS = 3;
 const SPOTLIGHT_WINDOW = 60 * 60 * 1000;
 
-const EVENT_TYPE_SPOTLIGHTS = ["searching face", "blocked"];
-const VALIDATION_SPOTLIGHTS = [
-    "blocked",
-    "detection error",
-    "searching face",
-    "face",
-    "no video",
-    "non event",
-    "false positive",
-    "unsafe",
-    "unsafe distraction",
+const DEFAULT_DATA_KEYWORDS = [
+    { type: "eventType", label: "Searching Face", keywords: ["searching face"] },
+    { type: "eventType", label: "Detection Error", keywords: ["detection error"] },
+    { type: "eventType", label: "False Positive", keywords: ["false positive"] },
+    { type: "eventType", label: "Non Event", keywords: ["non event"] },
+    { type: "eventType", label: "Blocked", keywords: ["blocked"] },
+    { type: "eventType", label: "Unsafe", keywords: ["unsafe"] },
+    { type: "eventType", label: "Dark Glasses", keywords: ["dark glasses"] },
+    { type: "eventType", label: "Micro Sleep", keywords: ["micro sleep", "microsleep"] },
+    { type: "eventType", label: "Distraction", keywords: ["distraction"] },
+    { type: "validationType", label: "Low Fatigue", keywords: ["low fatigue", "low"] },
+    { type: "validationType", label: "Moderate Fatigue", keywords: ["moderate fatigue", "moderate"] },
+    { type: "validationType", label: "Critical Fatigue", keywords: ["critical fatigue", "critical"] },
+    { type: "validationType", label: "Blocked", keywords: ["blocked"] },
+    { type: "validationType", label: "Unsafe", keywords: ["unsafe"] },
+    { type: "validationType", label: "Behavioral Distractions", keywords: ["behavioral distractions"] },
+    { type: "validationType", label: "Operational Distractions", keywords: ["operational distractions"] },
+    { type: "validationType", label: "Distraction", keywords: ["distraction"] },
+];
+
+const TECHNICAL_SPOTLIGHT_TERMS = ["Searching Face", "Detection Error", "False Positive", "Non Event", "Blocked", "Unsafe", "Dark Glasses"];
+const DATA_CENTER_FILTERS = [
+    { key: "criticalFatigue", label: "Critical Fatigue (V)", type: "validationType", terms: ["Critical Fatigue"] },
+    { key: "moderateFatigue", label: "Moderate Fatigue (V)", type: "validationType", terms: ["Moderate Fatigue"] },
+    { key: "lowFatigue", label: "Low Fatigue (V)", type: "validationType", terms: ["Low Fatigue"] },
+    { key: "blocked", label: "Blocked (V)", type: "validationType", terms: ["Blocked"] },
+    { key: "unsafe", label: "Unsafe (V)", type: "validationType", terms: ["Unsafe"] },
+    { key: "allFatigue", label: "All Fatigue (V)", type: "validationType", terms: ["Critical Fatigue", "Moderate Fatigue", "Low Fatigue"] },
+    { key: "microSleep", label: "Micro Sleep (ET)", type: "eventType", terms: ["Micro Sleep"] },
+    { key: "distraction", label: "Distraction (ET)", type: "eventType", terms: ["Distraction"] },
+    { key: "safeDistractions", label: "Safe Distractions (V)", type: "validationType", terms: ["Behavioral Distractions", "Operational Distractions", "Distraction"] },
 ];
 
 let siteStatsContainer = null;
@@ -29,12 +49,28 @@ let validationHotFive = null;
 let validationHotThree = null;
 let spotlightRangeStartInput = null;
 let spotlightRangeEndInput = null;
+let watchKeywordSearchInput = null;
+let spotlightKeywordSearchInput = null;
+let saveWatchFiltersButton = null;
+let clearWatchFiltersButton = null;
+let saveSpotlightFiltersButton = null;
+let clearSpotlightFiltersButton = null;
+let dataCenterRangeStartInput = null;
+let dataCenterRangeEndInput = null;
+let dataCenterFilterInput = null;
+let dataCenterGroupByInput = null;
+let dataCenterKeywordSearchInput = null;
+let dataCenterSortDirectionInput = null;
+let saveDataCenterFiltersButton = null;
+let clearDataCenterFiltersButton = null;
+let dataCenterContainer = null;
 let fluctuationContainer = null;
 let fluctuationExportButton = null;
 let refreshButton = null;
 let currentFluctuationClusters = [];
 let controlToastElement = null;
 let controlToastTimeoutId = null;
+let currentDataKeywords = sanitizeDataKeywords(DEFAULT_DATA_KEYWORDS);
 
 document.addEventListener("DOMContentLoaded", () => {
     siteStatsContainer = document.getElementById("siteStatsContainer");
@@ -43,12 +79,27 @@ document.addEventListener("DOMContentLoaded", () => {
     watchListTwoHour = document.getElementById("watchListTwoHour");
     watchRangeStartInput = document.getElementById("watchRangeStart");
     watchRangeEndInput = document.getElementById("watchRangeEnd");
+    watchKeywordSearchInput = document.getElementById("watchKeywordSearch");
+    saveWatchFiltersButton = document.getElementById("saveWatchFilters");
+    clearWatchFiltersButton = document.getElementById("clearWatchFilters");
     eventHotFive = document.getElementById("eventHotFive");
     eventHotThree = document.getElementById("eventHotThree");
     validationHotFive = document.getElementById("validationHotFive");
     validationHotThree = document.getElementById("validationHotThree");
     spotlightRangeStartInput = document.getElementById("spotlightRangeStart");
     spotlightRangeEndInput = document.getElementById("spotlightRangeEnd");
+    spotlightKeywordSearchInput = document.getElementById("spotlightKeywordSearch");
+    saveSpotlightFiltersButton = document.getElementById("saveSpotlightFilters");
+    clearSpotlightFiltersButton = document.getElementById("clearSpotlightFilters");
+    dataCenterRangeStartInput = document.getElementById("dataCenterRangeStart");
+    dataCenterRangeEndInput = document.getElementById("dataCenterRangeEnd");
+    dataCenterFilterInput = document.getElementById("dataCenterFilter");
+    dataCenterGroupByInput = document.getElementById("dataCenterGroupBy");
+    dataCenterKeywordSearchInput = document.getElementById("dataCenterKeywordSearch");
+    dataCenterSortDirectionInput = document.getElementById("dataCenterSortDirection");
+    saveDataCenterFiltersButton = document.getElementById("saveDataCenterFilters");
+    clearDataCenterFiltersButton = document.getElementById("clearDataCenterFilters");
+    dataCenterContainer = document.getElementById("dataCenterContainer");
     fluctuationContainer = document.getElementById("fluctuationContainer");
     fluctuationExportButton = document.getElementById("fluctuationExport");
     refreshButton = document.getElementById("controlRefresh");
@@ -68,11 +119,39 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    [watchRangeStartInput, watchRangeEndInput, spotlightRangeStartInput, spotlightRangeEndInput].forEach((input) => {
+    populateDataCenterFilterOptions();
+    applyMilitaryInputSettings();
+    loadSavedFilters();
+
+    [watchRangeStartInput, watchRangeEndInput, spotlightRangeStartInput, spotlightRangeEndInput, dataCenterRangeStartInput, dataCenterRangeEndInput, dataCenterFilterInput, dataCenterGroupByInput, dataCenterSortDirectionInput].forEach((input) => {
         if (input) {
             input.addEventListener("change", () => loadControlData({ showLoading: true }));
         }
     });
+    [watchKeywordSearchInput, spotlightKeywordSearchInput, dataCenterKeywordSearchInput].forEach((input) => {
+        if (input) {
+            input.addEventListener("input", () => loadControlData({ showLoading: true }));
+        }
+    });
+
+    if (saveWatchFiltersButton) {
+        saveWatchFiltersButton.addEventListener("click", () => saveFilters("watch"));
+    }
+    if (clearWatchFiltersButton) {
+        clearWatchFiltersButton.addEventListener("click", () => clearFilters("watch"));
+    }
+    if (saveSpotlightFiltersButton) {
+        saveSpotlightFiltersButton.addEventListener("click", () => saveFilters("spotlight"));
+    }
+    if (clearSpotlightFiltersButton) {
+        clearSpotlightFiltersButton.addEventListener("click", () => clearFilters("spotlight"));
+    }
+    if (saveDataCenterFiltersButton) {
+        saveDataCenterFiltersButton.addEventListener("click", () => saveFilters("dataCenter"));
+    }
+    if (clearDataCenterFiltersButton) {
+        clearDataCenterFiltersButton.addEventListener("click", () => clearFilters("dataCenter"));
+    }
 
     loadControlData();
 });
@@ -85,7 +164,8 @@ function loadControlData(options = {}) {
         refreshButton.classList.add("spinning");
     }
 
-    EventLogDB.getAll().then((rawLogs) => {
+    Promise.all([EventLogDB.getAll(), getControlConfig()]).then(([rawLogs, config]) => {
+        currentDataKeywords = config.dataKeywords;
         const logs = deduplicateForAnalytics(rawLogs
             .map((log) => normalizeLog(log))
             .filter(Boolean))
@@ -108,7 +188,10 @@ function loadControlData(options = {}) {
 
         renderSiteStats(logs, siteStatsContainer, siteStatsSummary);
 
-        const watchFilteredLogs = filterLogsByRange(logs, watchRangeStartInput?.value, watchRangeEndInput?.value);
+        const watchFilteredLogs = filterLogsByKeyword(
+            filterLogsByRange(logs, watchRangeStartInput?.value, watchRangeEndInput?.value),
+            watchKeywordSearchInput?.value,
+        );
         const watchLists = buildFatigueWatchLists(watchFilteredLogs);
         renderWatchList(watchListOneHour, watchLists.withinOneHour, {
             emptyMessage: "No trucks have three fatigue events within one hour.",
@@ -117,7 +200,10 @@ function loadControlData(options = {}) {
             emptyMessage: "No trucks have three fatigue events within two hours.",
         });
 
-        const spotlightFilteredLogs = filterLogsByRange(logs, spotlightRangeStartInput?.value, spotlightRangeEndInput?.value);
+        const spotlightFilteredLogs = filterLogsByKeyword(
+            filterLogsByRange(logs, spotlightRangeStartInput?.value, spotlightRangeEndInput?.value),
+            spotlightKeywordSearchInput?.value,
+        );
         const spotlights = buildSpotlights(spotlightFilteredLogs);
         renderSpotlightList(eventHotFive, spotlights.eventTypes.top, {
             emptyMessage: "No trucks reached five hotspot events within an hour window.",
@@ -135,6 +221,9 @@ function loadControlData(options = {}) {
             emptyMessage: "No trucks reached three hotspot validations within an hour window.",
             tone: "validation",
         });
+
+        const dataCenterLogs = filterLogsByRange(logs, dataCenterRangeStartInput?.value, dataCenterRangeEndInput?.value);
+        renderDataCenter(dataCenterLogs);
 
         currentFluctuationClusters = renderFluctuations(logs, fluctuationContainer);
         updateFluctuationExportButton(fluctuationExportButton, currentFluctuationClusters);
@@ -236,6 +325,143 @@ function safeText(value) {
     return String(value).trim();
 }
 
+function sanitizeDataKeywords(input) {
+    const source = Array.isArray(input) ? input : DEFAULT_DATA_KEYWORDS;
+    const sanitized = [];
+    const seen = new Set();
+    source.forEach((entry) => {
+        const type = entry?.type === "validationType" ? "validationType" : "eventType";
+        const label = safeText(entry?.label);
+        if (!label) {
+            return;
+        }
+        const key = `${type}|${label.toLowerCase()}`;
+        if (seen.has(key)) {
+            return;
+        }
+        const keywords = Array.from(new Set(
+            (Array.isArray(entry?.keywords) ? entry.keywords : [])
+                .concat([label])
+                .map((keyword) => safeText(keyword).toLowerCase())
+                .filter(Boolean),
+        ));
+        sanitized.push({ type, label, keywords });
+        seen.add(key);
+    });
+    return sanitized.length ? sanitized : sanitizeDataKeywords(DEFAULT_DATA_KEYWORDS);
+}
+
+function getControlConfig() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get({ dataKeywords: DEFAULT_DATA_KEYWORDS }, (data) => {
+            resolve({ dataKeywords: sanitizeDataKeywords(data.dataKeywords) });
+        });
+    });
+}
+
+function applyMilitaryInputSettings() {
+    [watchRangeStartInput, watchRangeEndInput, spotlightRangeStartInput, spotlightRangeEndInput, dataCenterRangeStartInput, dataCenterRangeEndInput]
+        .filter(Boolean)
+        .forEach((input) => {
+            input.step = "1";
+        });
+}
+
+function getFilterSnapshot(section) {
+    if (section === "watch") {
+        return {
+            start: watchRangeStartInput?.value || "",
+            end: watchRangeEndInput?.value || "",
+            keyword: watchKeywordSearchInput?.value || "",
+        };
+    }
+    if (section === "spotlight") {
+        return {
+            start: spotlightRangeStartInput?.value || "",
+            end: spotlightRangeEndInput?.value || "",
+            keyword: spotlightKeywordSearchInput?.value || "",
+        };
+    }
+    return {
+        start: dataCenterRangeStartInput?.value || "",
+        end: dataCenterRangeEndInput?.value || "",
+        filter: dataCenterFilterInput?.value || "criticalFatigue",
+        groupBy: dataCenterGroupByInput?.value || "truck",
+        keyword: dataCenterKeywordSearchInput?.value || "",
+        sort: dataCenterSortDirectionInput?.value || "desc",
+    };
+}
+
+function saveFilters(section) {
+    chrome.storage.local.get({ qaControlFilters: {} }, (data) => {
+        const next = { ...(data.qaControlFilters || {}) };
+        next[section] = getFilterSnapshot(section);
+        chrome.storage.local.set({ qaControlFilters: next }, () => showControlToast("Filters saved"));
+    });
+}
+
+function clearFilters(section) {
+    if (section === "watch") {
+        if (watchRangeStartInput) watchRangeStartInput.value = "";
+        if (watchRangeEndInput) watchRangeEndInput.value = "";
+        if (watchKeywordSearchInput) watchKeywordSearchInput.value = "";
+    } else if (section === "spotlight") {
+        if (spotlightRangeStartInput) spotlightRangeStartInput.value = "";
+        if (spotlightRangeEndInput) spotlightRangeEndInput.value = "";
+        if (spotlightKeywordSearchInput) spotlightKeywordSearchInput.value = "";
+    } else {
+        if (dataCenterRangeStartInput) dataCenterRangeStartInput.value = "";
+        if (dataCenterRangeEndInput) dataCenterRangeEndInput.value = "";
+        if (dataCenterKeywordSearchInput) dataCenterKeywordSearchInput.value = "";
+        if (dataCenterFilterInput) dataCenterFilterInput.value = "criticalFatigue";
+        if (dataCenterGroupByInput) dataCenterGroupByInput.value = "truck";
+        if (dataCenterSortDirectionInput) dataCenterSortDirectionInput.value = "desc";
+    }
+    chrome.storage.local.get({ qaControlFilters: {} }, (data) => {
+        const next = { ...(data.qaControlFilters || {}) };
+        delete next[section];
+        chrome.storage.local.set({ qaControlFilters: next }, () => {
+            loadControlData({ showLoading: true });
+            showControlToast("Filters cleared");
+        });
+    });
+}
+
+function loadSavedFilters() {
+    chrome.storage.local.get({ qaControlFilters: {} }, (data) => {
+        const saved = data.qaControlFilters || {};
+        const watch = saved.watch || {};
+        const spotlight = saved.spotlight || {};
+        const dataCenter = saved.dataCenter || {};
+        if (watchRangeStartInput) watchRangeStartInput.value = safeText(watch.start);
+        if (watchRangeEndInput) watchRangeEndInput.value = safeText(watch.end);
+        if (watchKeywordSearchInput) watchKeywordSearchInput.value = safeText(watch.keyword);
+        if (spotlightRangeStartInput) spotlightRangeStartInput.value = safeText(spotlight.start);
+        if (spotlightRangeEndInput) spotlightRangeEndInput.value = safeText(spotlight.end);
+        if (spotlightKeywordSearchInput) spotlightKeywordSearchInput.value = safeText(spotlight.keyword);
+        if (dataCenterRangeStartInput) dataCenterRangeStartInput.value = safeText(dataCenter.start);
+        if (dataCenterRangeEndInput) dataCenterRangeEndInput.value = safeText(dataCenter.end);
+        if (dataCenterFilterInput) dataCenterFilterInput.value = safeText(dataCenter.filter) || "criticalFatigue";
+        if (dataCenterGroupByInput) dataCenterGroupByInput.value = safeText(dataCenter.groupBy) || "truck";
+        if (dataCenterKeywordSearchInput) dataCenterKeywordSearchInput.value = safeText(dataCenter.keyword);
+        if (dataCenterSortDirectionInput) dataCenterSortDirectionInput.value = safeText(dataCenter.sort) || "desc";
+    });
+}
+
+function populateDataCenterFilterOptions() {
+    if (!dataCenterFilterInput) {
+        return;
+    }
+    dataCenterFilterInput.innerHTML = "";
+    DATA_CENTER_FILTERS.forEach((filter) => {
+        const option = document.createElement("option");
+        option.value = filter.key;
+        option.textContent = filter.label;
+        dataCenterFilterInput.appendChild(option);
+    });
+    dataCenterFilterInput.value = "criticalFatigue";
+}
+
 
 function parseRangeInput(value) {
     const raw = safeText(value);
@@ -267,6 +493,24 @@ function filterLogsByRange(logs, startValue, endValue) {
             return false;
         }
         return true;
+    });
+}
+
+function filterLogsByKeyword(logs, keywordValue) {
+    const needle = safeText(keywordValue).toLowerCase();
+    if (!needle) {
+        return Array.isArray(logs) ? logs : [];
+    }
+    return (Array.isArray(logs) ? logs : []).filter((log) => {
+        const haystack = [
+            log.truckNumber,
+            log.siteName,
+            log.eventType,
+            log.callValidationType,
+            log.validationType,
+            log.timestampText,
+        ].map((value) => safeText(value).toLowerCase()).join(" ");
+        return haystack.includes(needle);
     });
 }
 function deriveValidation(log) {
@@ -591,24 +835,20 @@ function renderWatchList(container, entries, { emptyMessage }) {
 }
 
 function buildSpotlights(logs) {
-    const grouped = groupLogsByIdentity(logs, () => true);
-
+    const eventGrouped = groupLogsByIdentity(logs, (event) => isSpotlightEventType(event.eventType));
     const eventEntries = buildClusterEntries(
-        grouped,
+        eventGrouped,
         SPOTLIGHT_WINDOW,
         3,
         (event) => event.eventType,
-    ).filter((entry) =>
-        entry.events.some((event) => isSpotlightEventType(event.eventType)),
     );
 
+    const validationGrouped = groupLogsByIdentity(logs, (event) => isSpotlightValidation(event.callValidationType || event.validationType));
     const validationEntries = buildClusterEntries(
-        grouped,
+        validationGrouped,
         SPOTLIGHT_WINDOW,
         3,
         (event) => event.callValidationType || event.validationType,
-    ).filter((entry) =>
-        entry.events.some((event) => isSpotlightValidation(event.callValidationType || event.validationType)),
     );
 
     return {
@@ -772,6 +1012,93 @@ function renderSpotlightList(container, entries, { emptyMessage, tone, labelType
 
         container.appendChild(card);
     });
+}
+
+function renderDataCenter(logs) {
+    if (!dataCenterContainer) {
+        return;
+    }
+    const filterKey = safeText(dataCenterFilterInput?.value) || "criticalFatigue";
+    const filterConfig = DATA_CENTER_FILTERS.find((entry) => entry.key === filterKey) || DATA_CENTER_FILTERS[0];
+    const groupBy = safeText(dataCenterGroupByInput?.value) === "site" ? "site" : "truck";
+    const keyword = safeText(dataCenterKeywordSearchInput?.value).toLowerCase();
+    const sortDirection = safeText(dataCenterSortDirectionInput?.value) === "asc" ? "asc" : "desc";
+
+    const matched = (Array.isArray(logs) ? logs : []).filter((log) => eventMatchesDataCenterFilter(log, filterConfig, keyword));
+    const grouped = new Map();
+    matched.forEach((log) => {
+        const truck = safeText(log.truckNumber) || "Unknown truck";
+        const site = safeText(log.siteName) || getHost(log.pageUrl) || "Unknown site";
+        const key = groupBy === "site" ? site.toLowerCase() : truck.toLowerCase();
+        if (!grouped.has(key)) {
+            grouped.set(key, { truck, site, events: [] });
+        }
+        grouped.get(key).events.push(log);
+    });
+
+    const rows = Array.from(grouped.values()).map((bucket) => {
+        const sortedEvents = bucket.events.slice().sort((a, b) => getEventTime(b) - getEventTime(a));
+        return {
+            truck: bucket.truck,
+            site: bucket.site,
+            search: filterConfig.label,
+            count: sortedEvents.length,
+            latestEvent: sortedEvents[0] || null,
+        };
+    });
+
+    rows.sort((a, b) => (sortDirection === "asc" ? a.count - b.count : b.count - a.count) || getEventTime(b.latestEvent) - getEventTime(a.latestEvent));
+
+    dataCenterContainer.innerHTML = "";
+    if (!rows.length) {
+        dataCenterContainer.innerHTML = '<p class="empty-state">No Data Center matches found.</p>';
+        return;
+    }
+
+    const table = document.createElement("table");
+    table.className = "table";
+    table.innerHTML = `<thead><tr><th>Truck #</th><th>Site</th><th>Search #</th><th>Date</th></tr></thead>`;
+    const tbody = document.createElement("tbody");
+    rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        const dateText = row.latestEvent ? getEventDisplayTime(row.latestEvent) : "—";
+        tr.innerHTML = `<td>${escapeHtml(row.truck)}</td><td>${escapeHtml(row.site)}</td><td>${escapeHtml(row.search)} · ${row.count}</td><td>${escapeHtml(dateText)}</td>`;
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    dataCenterContainer.appendChild(table);
+}
+
+function eventMatchesDataCenterFilter(log, filterConfig, keyword) {
+    const sourceValue = filterConfig.type === "eventType"
+        ? safeText(log.eventType).toLowerCase()
+        : safeText(log.callValidationType || log.validationType).toLowerCase();
+    const aliasPool = filterConfig.terms.flatMap((term) => getAliasesForLabel(filterConfig.type, term));
+    const filterMatch = aliasPool.some((alias) => sourceValue.includes(alias));
+    if (!filterMatch) {
+        return false;
+    }
+    if (!keyword) {
+        return true;
+    }
+    const haystack = [
+        log.truckNumber,
+        log.siteName,
+        log.eventType,
+        log.callValidationType,
+        log.validationType,
+        log.timestampText,
+    ].map((value) => safeText(value).toLowerCase()).join(" ");
+    return haystack.includes(keyword);
+}
+
+function escapeHtml(value) {
+    return safeText(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
 }
 
 function renderFluctuations(logs, container) {
@@ -1210,17 +1537,29 @@ function isFatigueValidation(text) {
 }
 
 function isSpotlightEventType(text) {
-    const value = safeText(text).toLowerCase();
-    if (!value) {
-        return false;
-    }
-    return EVENT_TYPE_SPOTLIGHTS.some((keyword) => value.includes(keyword));
+    return matchKeywordAliases("eventType", TECHNICAL_SPOTLIGHT_TERMS, text);
 }
 
 function isSpotlightValidation(text) {
-    const value = safeText(text).toLowerCase();
-    if (!value) {
+    return matchKeywordAliases("validationType", TECHNICAL_SPOTLIGHT_TERMS, text);
+}
+
+function matchKeywordAliases(type, labels, value) {
+    const text = safeText(value).toLowerCase();
+    if (!text) {
         return false;
     }
-    return VALIDATION_SPOTLIGHTS.some((keyword) => value.includes(keyword));
+    return labels.some((label) => {
+        const aliases = getAliasesForLabel(type, label);
+        return aliases.some((alias) => text.includes(alias));
+    });
+}
+
+function getAliasesForLabel(type, label) {
+    const needle = safeText(label).toLowerCase();
+    const matches = currentDataKeywords.filter((entry) => entry.type === type && safeText(entry.label).toLowerCase() === needle);
+    if (!matches.length) {
+        return [needle];
+    }
+    return Array.from(new Set(matches.flatMap((entry) => entry.keywords)));
 }

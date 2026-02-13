@@ -57,6 +57,11 @@
                 <div class="section-range-controls">
                     <label>From <input type="datetime-local" id="watchRangeStart"></label>
                     <label>To <input type="datetime-local" id="watchRangeEnd"></label>
+                    <label>Keyword <input type="search" id="watchKeywordSearch" placeholder="Search truck, site, event, validation"></label>
+                    <div class="filter-actions">
+                        <button id="saveWatchFilters" class="secondary" type="button">Save</button>
+                        <button id="clearWatchFilters" class="secondary" type="button">Clear</button>
+                    </div>
                 </div>
                 <div class="watch-columns">
                     <div class="watch-column">
@@ -83,6 +88,11 @@
                 <div class="section-range-controls">
                     <label>From <input type="datetime-local" id="spotlightRangeStart"></label>
                     <label>To <input type="datetime-local" id="spotlightRangeEnd"></label>
+                    <label>Keyword <input type="search" id="spotlightKeywordSearch" placeholder="Search truck, site, event, validation"></label>
+                    <div class="filter-actions">
+                        <button id="saveSpotlightFilters" class="secondary" type="button">Save</button>
+                        <button id="clearSpotlightFilters" class="secondary" type="button">Clear</button>
+                    </div>
                 </div>
                 <div class="spotlight-sections">
                     <div class="spotlight-block">
@@ -112,6 +122,42 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section class="page-card" id="dataCenterCard">
+            <div class="card-header">
+                <h2>Data Center</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="section-range-controls">
+                    <label>From <input type="datetime-local" id="dataCenterRangeStart"></label>
+                    <label>To <input type="datetime-local" id="dataCenterRangeEnd"></label>
+                    <label>Search #
+                        <select id="dataCenterFilter"></select>
+                    </label>
+                    <label>Group by
+                        <select id="dataCenterGroupBy">
+                            <option value="truck">Truck #</option>
+                            <option value="site">Site</option>
+                        </select>
+                    </label>
+                    <label>Keyword <input type="search" id="dataCenterKeywordSearch" placeholder="Search keyword"></label>
+                    <label>Sort
+                        <select id="dataCenterSortDirection">
+                            <option value="desc">Highest first</option>
+                            <option value="asc">Lowest first</option>
+                        </select>
+                    </label>
+                    <div class="filter-actions">
+                        <button id="saveDataCenterFilters" class="secondary" type="button">Save</button>
+                        <button id="clearDataCenterFilters" class="secondary" type="button">Clear</button>
+                    </div>
+                </div>
+                <div id="dataCenterContainer" class="data-center-list"></div>
             </div>
         </section>
 

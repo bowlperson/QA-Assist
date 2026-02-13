@@ -867,7 +867,7 @@ button.primary:focus-visible {
 
 .validation-row {
     display: grid;
-    grid-template-columns: minmax(160px, 2fr) minmax(200px, 3fr) auto;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) auto;
     gap: 12px;
     align-items: center;
     padding: 16px;
@@ -887,7 +887,8 @@ button.primary:focus-visible {
     color: var(--muted);
 }
 
-.validation-row input[type="text"] {
+.validation-row input[type="text"],
+.validation-row select {
     width: 100%;
 }
 
@@ -1130,6 +1131,43 @@ button.primary:focus-visible {
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 10px;
     padding: 6px 8px;
+}
+
+.section-range-controls select {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 6px 8px;
+}
+
+.filter-actions {
+    display: inline-flex;
+    gap: 8px;
+}
+
+.filter-actions button {
+    padding: 6px 10px;
+}
+
+.data-center-list .table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-center-list .table th,
+.data-center-list .table td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+}
+
+.data-center-list .table th {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 10px;
+    color: var(--muted);
 }
 
 .watch-columns {
