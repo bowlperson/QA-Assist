@@ -1,8 +1,8 @@
 if (typeof importScripts === "function") {
     try {
-        importScripts("enabled-state-controller.js");
+        importScripts("enabled-state-controller.js", "event-log-db.js");
     } catch (error) {
-        console.error("Failed to load enabled state controller", error);
+        console.error("Failed to load background dependencies", error);
     }
 }
 
@@ -53,6 +53,11 @@ const STORAGE_MIGRATION_KEYS = [
     "antiLagEnabled",
     "antiLagSeekSeconds",
 ];
+const ALERT_ALARM_NAME = "qaAssistAlertScan";
+const ALERT_SCAN_PERIOD_MINUTES = 1;
+const ALERT_WINDOW_MS = 60 * 60 * 1000;
+const ALERT_SPOTLIGHT_TERMS = ["searching face", "detection error", "false positive", "non event", "blocked", "unsafe", "dark glasses"];
+
 
 function updateBrowserActionIcon(isEnabled) {
     if (!actionApi || typeof actionApi.setIcon !== "function") {
@@ -124,16 +129,298 @@ chrome.runtime.onInstalled.addListener(() => {
     migrateSyncStorage();
     migrateDispatchName();
     initializeSiteDirectory();
+    ensureAlertAlarm();
+    runAlertScan();
 });
 chrome.runtime.onStartup.addListener(() => {
     migrateSyncStorage();
     migrateDispatchName();
     initializeSiteDirectory();
+    ensureAlertAlarm();
+    runAlertScan();
 });
+
+if (chrome.alarms && chrome.alarms.onAlarm) {
+    chrome.alarms.onAlarm.addListener((alarm) => {
+        if (alarm?.name === ALERT_ALARM_NAME) {
+            runAlertScan();
+        }
+    });
+}
+
+
+function ensureAlertAlarm() {
+    if (!chrome.alarms) {
+        return;
+    }
+    chrome.alarms.create(ALERT_ALARM_NAME, { periodInMinutes: ALERT_SCAN_PERIOD_MINUTES });
+}
+
+function isFatigueValidation(text) {
+    const value = String(text || "").trim().toLowerCase();
+    if (!value) {
+        return false;
+    }
+    return value.includes("fatigue") || /\b(low|moderate|critical)\b/.test(value);
+}
+
+function matchesSpotlight(text) {
+    const value = String(text || "").trim().toLowerCase();
+    if (!value) {
+        return false;
+    }
+    return ALERT_SPOTLIGHT_TERMS.some((term) => value.includes(term));
+}
+
+function getEventTime(log) {
+    if (!log) {
+        return NaN;
+    }
+    const candidates = [log.timestampMs, log.createdAt && Date.parse(log.createdAt), log.timestamp && Date.parse(log.timestamp)];
+    for (const candidate of candidates) {
+        const numeric = Number(candidate);
+        if (Number.isFinite(numeric)) {
+            return numeric;
+        }
+    }
+    return NaN;
+}
+
+function buildIdentity(log) {
+    const truck = String(log?.truckNumber || "").trim() || "Unknown truck";
+    const site = String(log?.siteName || "").trim() || "Unknown site";
+    return { key: `${truck.toLowerCase()}|${site.toLowerCase()}`, truck, site };
+}
+
+function findClusterWindows(events, windowSize, minCount) {
+    const timeline = (Array.isArray(events) ? events : [])
+        .map((event) => ({ event, time: getEventTime(event) }))
+        .filter((entry) => Number.isFinite(entry.time))
+        .sort((a, b) => a.time - b.time);
+
+    const clusters = [];
+    let start = 0;
+
+    while (start < timeline.length) {
+        let end = start;
+        while (end + 1 < timeline.length && timeline[end + 1].time - timeline[start].time <= windowSize) {
+            end += 1;
+        }
+
+        const windowEvents = timeline.slice(start, end + 1);
+        if (windowEvents.length >= minCount) {
+            clusters.push({
+                events: windowEvents.map((entry) => entry.event),
+                start: windowEvents[0].time,
+                end: windowEvents[windowEvents.length - 1].time,
+                count: windowEvents.length,
+            });
+        }
+        start = end + 1;
+    }
+
+    return clusters;
+}
+
+function collectAlertCandidates(logs, settings) {
+    const byIdentity = new Map();
+    (Array.isArray(logs) ? logs : []).forEach((log) => {
+        const identity = buildIdentity(log);
+        if (!byIdentity.has(identity.key)) {
+            byIdentity.set(identity.key, { ...identity, events: [] });
+        }
+        byIdentity.get(identity.key).events.push(log);
+    });
+
+    const candidates = [];
+    const watchEnabled = settings.watchListNotificationsEnabled !== false;
+    const spotlightEnabled = settings.spotlightNotificationsEnabled !== false;
+    const spotlightStartThreshold = Math.max(3, Number(settings.spotlightInitialThreshold) || 5);
+
+    byIdentity.forEach((group) => {
+        if (watchEnabled) {
+            const fatigueEvents = group.events.filter((event) => isFatigueValidation(event.callValidationType || event.validationType));
+            findClusterWindows(fatigueEvents, ALERT_WINDOW_MS, 3).forEach((cluster) => {
+                candidates.push({
+                    key: `watch|${group.key}|${cluster.start}|${cluster.end}`,
+                    title: `Watch List: ${group.truck}`,
+                    description: `${group.site} · ${cluster.count} fatigue alerts in 1 hour`,
+                    createdAt: cluster.end,
+                    count: cluster.count,
+                    source: "watch",
+                });
+            });
+        }
+
+        if (spotlightEnabled) {
+            const spotlightEvents = group.events.filter((event) => matchesSpotlight(event.eventType) || matchesSpotlight(event.callValidationType || event.validationType));
+            findClusterWindows(spotlightEvents, ALERT_WINDOW_MS, spotlightStartThreshold).forEach((cluster) => {
+                candidates.push({
+                    key: `spotlight|${group.key}|${cluster.start}|${cluster.end}`,
+                    title: `Technical Spotlight: ${group.truck}`,
+                    description: `${group.site} · ${cluster.count} technical alerts in 1 hour`,
+                    createdAt: cluster.end,
+                    count: cluster.count,
+                    source: "spotlight",
+                });
+            });
+        }
+    });
+
+    return candidates.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+function createAlertRecord(alert) {
+    return {
+        id: `alert-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+        key: alert.key,
+        title: alert.title,
+        description: alert.description,
+        createdAt: Number.isFinite(alert.createdAt) ? alert.createdAt : Date.now(),
+        read: false,
+    };
+}
+
+function updateBadgeFromNotifications(notifications) {
+    const unreadCount = (Array.isArray(notifications) ? notifications : []).filter((entry) => !entry.read).length;
+    setAlertBadge(unreadCount);
+}
+
+function runAlertScan() {
+    if (typeof EventLogDB === "undefined" || typeof EventLogDB.getAll !== "function") {
+        return;
+    }
+
+    Promise.all([
+        EventLogDB.getAll(),
+        new Promise((resolve) => {
+            chrome.storage.local.get({
+                notificationsEnabled: true,
+                notificationMode: "windows",
+                alertNotifications: [],
+                notificationAlertState: {},
+                watchListNotificationsEnabled: true,
+                spotlightNotificationsEnabled: true,
+                notificationIncrementThreshold: 3,
+                notificationRepeatWindowMinutes: 2,
+                spotlightInitialThreshold: 5,
+            }, resolve);
+        }),
+    ]).then(([rawLogs, settings]) => {
+        if (settings.notificationsEnabled === false) {
+            return;
+        }
+
+        const existingNotifications = Array.isArray(settings.alertNotifications) ? settings.alertNotifications : [];
+        const state = settings.notificationAlertState && typeof settings.notificationAlertState === "object"
+            ? { ...settings.notificationAlertState }
+            : {};
+
+        const normalized = (Array.isArray(rawLogs) ? rawLogs : []).map((log) => ({
+            ...log,
+            timestampMs: getEventTime(log),
+        })).filter((log) => Number.isFinite(log.timestampMs));
+
+        const deduped = new Map();
+        normalized.forEach((log) => {
+            const key = typeof EventLogDB.buildDuplicateKey === "function" ? EventLogDB.buildDuplicateKey(log) : `${log.id || ""}|${log.timestampMs}`;
+            deduped.set(key || `${log.id || ""}|${log.timestampMs}`, log);
+        });
+
+        const candidates = collectAlertCandidates(Array.from(deduped.values()), settings);
+        const now = Date.now();
+        const incrementThreshold = Math.max(1, Number(settings.notificationIncrementThreshold) || 3);
+        const repeatWindowMs = Math.max(1, Number(settings.notificationRepeatWindowMinutes) || 2) * 60 * 1000;
+        const watchInitialThreshold = 3;
+        const spotlightInitialThreshold = Math.max(3, Number(settings.spotlightInitialThreshold) || 5);
+
+        const alertsToSend = [];
+        const currentKeys = new Set();
+
+        candidates.forEach((candidate) => {
+            currentKeys.add(candidate.key);
+            const candidateCount = Number(candidate.count) || 0;
+            const sourceInitial = candidate.source === "watch" ? watchInitialThreshold : spotlightInitialThreshold;
+            if (candidateCount < sourceInitial) {
+                return;
+            }
+
+            const entry = state[candidate.key] || { lastCount: 0, lastNotifiedAt: 0 };
+            const delta = candidateCount - Number(entry.lastCount || 0);
+            const elapsed = now - Number(entry.lastNotifiedAt || 0);
+            const isInitial = Number(entry.lastCount || 0) === 0;
+
+            let shouldNotify = false;
+            if (isInitial && candidateCount >= sourceInitial) {
+                shouldNotify = true;
+            } else if (delta >= incrementThreshold) {
+                shouldNotify = true;
+            } else if (delta > 0 && elapsed >= repeatWindowMs) {
+                shouldNotify = true;
+            }
+
+            if (shouldNotify) {
+                alertsToSend.push(candidate);
+                state[candidate.key] = {
+                    lastCount: candidateCount,
+                    lastNotifiedAt: now,
+                };
+            } else {
+                state[candidate.key] = {
+                    lastCount: Math.max(Number(entry.lastCount || 0), candidateCount),
+                    lastNotifiedAt: Number(entry.lastNotifiedAt || 0),
+                };
+            }
+        });
+
+        Object.keys(state).forEach((key) => {
+            if (!currentKeys.has(key)) {
+                delete state[key];
+            }
+        });
+
+        if (!alertsToSend.length) {
+            updateBadgeFromNotifications(existingNotifications);
+            chrome.storage.local.set({ notificationAlertState: state });
+            return;
+        }
+
+        const records = alertsToSend.map(createAlertRecord);
+        const notifications = records.concat(existingNotifications).slice(0, 300);
+
+        chrome.storage.local.set({ alertNotifications: notifications, notificationAlertState: state }, () => {
+            updateBadgeFromNotifications(notifications);
+            const mode = settings.notificationMode === "extension" ? "extension" : "windows";
+            if (mode === "windows") {
+                records.forEach((record) => createWindowsNotification(record));
+            }
+        });
+    }).catch((error) => {
+        console.error("Alert scan failed", error);
+    });
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message || typeof message !== "object") {
         return;
+    }
+
+    if (message.type === "eventLogUpsert") {
+        if (typeof EventLogDB === "undefined" || typeof EventLogDB.upsert !== "function") {
+            sendResponse({ success: false, error: "EventLogDB unavailable in background" });
+            return false;
+        }
+
+        EventLogDB.upsert(message.event || null)
+            .then((record) => {
+                runAlertScan();
+                sendResponse({ success: true, record: record || null });
+            })
+            .catch((error) => {
+                console.error("Failed to upsert event log", error);
+                sendResponse({ success: false, error: error?.message || "Failed to upsert event log" });
+            });
+        return true;
     }
 
     if (message.type === "getEnabledState") {
@@ -150,6 +437,70 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         chrome.storage.local.get({ enabled: false }, (data) => {
             sendResponse({ enabled: normalizeBoolean(data.enabled, false) });
+        });
+        return true;
+    }
+
+
+    if (message.type === "getAlertNotifications") {
+        chrome.storage.local.get({ alertNotifications: [] }, (data) => {
+            const notifications = Array.isArray(data.alertNotifications) ? data.alertNotifications : [];
+            updateBadgeFromNotifications(notifications);
+            sendResponse({ notifications });
+        });
+        return true;
+    }
+
+    if (message.type === "markAllAlertsRead") {
+        chrome.storage.local.get({ alertNotifications: [] }, (data) => {
+            const notifications = (Array.isArray(data.alertNotifications) ? data.alertNotifications : []).map((entry) => ({ ...entry, read: true }));
+            chrome.storage.local.set({ alertNotifications: notifications }, () => {
+                updateBadgeFromNotifications(notifications);
+                sendResponse({ success: true });
+            });
+        });
+        return true;
+    }
+
+    if (message.type === "markAlertRead") {
+        const id = String(message.id || "");
+        chrome.storage.local.get({ alertNotifications: [] }, (data) => {
+            const notifications = (Array.isArray(data.alertNotifications) ? data.alertNotifications : []).map((entry) => entry.id === id ? { ...entry, read: true } : entry);
+            chrome.storage.local.set({ alertNotifications: notifications }, () => {
+                updateBadgeFromNotifications(notifications);
+                sendResponse({ success: true });
+            });
+        });
+        return true;
+    }
+
+    if (message.type === "deleteAlert") {
+        const id = String(message.id || "");
+        chrome.storage.local.get({ alertNotifications: [] }, (data) => {
+            const notifications = (Array.isArray(data.alertNotifications) ? data.alertNotifications : []).filter((entry) => entry.id !== id);
+            chrome.storage.local.set({ alertNotifications: notifications }, () => {
+                updateBadgeFromNotifications(notifications);
+                sendResponse({ success: true });
+            });
+        });
+        return true;
+    }
+
+    if (message.type === "clearAlerts") {
+        chrome.storage.local.set({ alertNotifications: [] }, () => {
+            updateBadgeFromNotifications([]);
+            sendResponse({ success: true });
+        });
+        return true;
+    }
+
+    if (message.type === "clearAlertBadge") {
+        chrome.storage.local.get({ alertNotifications: [] }, (data) => {
+            const notifications = (Array.isArray(data.alertNotifications) ? data.alertNotifications : []).map((entry) => ({ ...entry, read: true }));
+            chrome.storage.local.set({ alertNotifications: notifications }, () => {
+                updateBadgeFromNotifications(notifications);
+                sendResponse({ success: true });
+            });
         });
         return true;
     }
@@ -193,7 +544,36 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     if (enabledStateController) {
         enabledStateController.handleStorageChange(changes, areaName);
     }
+    if (areaName === "local" && changes.alertNotifications) {
+        const next = Array.isArray(changes.alertNotifications.newValue) ? changes.alertNotifications.newValue : [];
+        updateBadgeFromNotifications(next);
+    }
 });
+
+
+function setAlertBadge(count) {
+    if (!actionApi || typeof actionApi.setBadgeText !== "function") {
+        return;
+    }
+    const text = count > 0 ? String(Math.min(count, 99)) : "";
+    actionApi.setBadgeText({ text });
+    if (typeof actionApi.setBadgeBackgroundColor === "function") {
+        actionApi.setBadgeBackgroundColor({ color: "#d93025" });
+    }
+}
+
+function createWindowsNotification(alert) {
+    if (!chrome.notifications || typeof chrome.notifications.create !== "function") {
+        return;
+    }
+    chrome.notifications.create(`qa-alert-${Date.now()}-${Math.floor(Math.random() * 1000)}`, {
+        type: "basic",
+        iconUrl: "icon.png",
+        title: alert.title || "QA Assist alert",
+        message: alert.description || "New QA Assist alert.",
+        priority: 1,
+    });
+}
 
 function migrateSyncStorage() {
     if (!chrome.storage || !chrome.storage.sync || typeof chrome.storage.sync.get !== "function") {

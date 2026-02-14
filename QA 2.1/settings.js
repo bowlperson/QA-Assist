@@ -19,6 +19,26 @@ const DEFAULT_VALIDATION_VOCABULARY = [
     { label: 'Lost Connection', keywords: ['lost connection', 'lost', 'disconnect'] },
 ];
 
+const DEFAULT_DATA_KEYWORDS = [
+    { type: 'eventType', label: 'Searching Face', keywords: ['searching face'] },
+    { type: 'eventType', label: 'Detection Error', keywords: ['detection error'] },
+    { type: 'eventType', label: 'False Positive', keywords: ['false positive'] },
+    { type: 'eventType', label: 'Non Event', keywords: ['non event'] },
+    { type: 'eventType', label: 'Blocked', keywords: ['blocked'] },
+    { type: 'eventType', label: 'Unsafe', keywords: ['unsafe'] },
+    { type: 'eventType', label: 'Dark Glasses', keywords: ['dark glasses'] },
+    { type: 'eventType', label: 'Micro Sleep', keywords: ['micro sleep', 'microsleep'] },
+    { type: 'eventType', label: 'Distraction', keywords: ['distraction'] },
+    { type: 'validationType', label: 'Low Fatigue', keywords: ['low fatigue', 'low'] },
+    { type: 'validationType', label: 'Moderate Fatigue', keywords: ['moderate fatigue', 'moderate'] },
+    { type: 'validationType', label: 'Critical Fatigue', keywords: ['critical fatigue', 'critical'] },
+    { type: 'validationType', label: 'Blocked', keywords: ['blocked'] },
+    { type: 'validationType', label: 'Unsafe', keywords: ['unsafe'] },
+    { type: 'validationType', label: 'Behavioral Distractions', keywords: ['behavioral distractions'] },
+    { type: 'validationType', label: 'Operational Distractions', keywords: ['operational distractions'] },
+    { type: 'validationType', label: 'Distraction', keywords: ['distraction'] },
+];
+
 document.addEventListener('DOMContentLoaded', () => {
     const rulesContainer = document.getElementById('rulesContainer');
     const addRuleBtn = document.getElementById('addRule');
@@ -36,12 +56,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const antiLagSeekInput = document.getElementById('antiLagSeek');
     const antiLagSeekContainer = document.getElementById('antiLagSeekContainer');
     const saveBtn = document.getElementById('saveSettings');
+    const notificationsEnabledInput = document.getElementById('notificationsEnabled');
+    const notificationModeInput = document.getElementById('notificationMode');
+    const notificationSoundEnabledInput = document.getElementById('notificationSoundEnabled');
+    const notificationVolumeInput = document.getElementById('notificationVolume');
+    const notificationVolumeLabel = document.getElementById('notificationVolumeLabel');
+    const watchListNotificationsEnabledInput = document.getElementById('watchListNotificationsEnabled');
+    const spotlightNotificationsEnabledInput = document.getElementById('spotlightNotificationsEnabled');
+    const notificationIncrementThresholdInput = document.getElementById('notificationIncrementThreshold');
+    const notificationRepeatWindowMinutesInput = document.getElementById('notificationRepeatWindowMinutes');
     const siteRulesContainer = document.getElementById('siteRulesContainer');
     const addSiteRuleBtn = document.getElementById('addSiteRule');
     const toast = document.getElementById('settingsToast');
     const validationListContainer = document.getElementById('validationList');
     const addValidationTermButton = document.getElementById('addValidationTerm');
     const validationFilterToggle = document.getElementById('validationFilterToggle');
+    const dataKeywordListContainer = document.getElementById('dataKeywordList');
+    const addDataKeywordButton = document.getElementById('addDataKeyword');
     const confirmModal = document.getElementById('confirmModal');
     const confirmMessage = document.getElementById('confirmMessage');
     const confirmAcceptButton = document.getElementById('confirmAccept');
@@ -131,6 +162,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
     }
 
+    function cloneDefaultDataKeywords() {
+        return DEFAULT_DATA_KEYWORDS.map((entry) => ({
+            type: entry.type,
+            label: entry.label,
+            keywords: Array.isArray(entry.keywords) ? [...entry.keywords] : [],
+        }));
+    }
+
     function sanitizeVocabularyInput(input, { fallback = false } = {}) {
         if (!Array.isArray(input)) {
             return fallback ? cloneDefaultVocabulary() : [];
@@ -215,6 +254,91 @@ document.addEventListener('DOMContentLoaded', () => {
         row.append(labelField, keywordField, removeBtn);
         validationListContainer.appendChild(row);
 
+        return labelInput;
+    }
+
+    function sanitizeDataKeywordsInput(input, { fallback = false } = {}) {
+        if (!Array.isArray(input)) {
+            return fallback ? cloneDefaultDataKeywords() : [];
+        }
+
+        const seen = new Set();
+        const sanitized = input
+            .map((entry) => {
+                const type = entry?.type === 'validationType' ? 'validationType' : 'eventType';
+                const label = String(entry?.label || '').trim();
+                if (!label) {
+                    return null;
+                }
+                const unique = `${type}|${label.toLowerCase()}`;
+                if (seen.has(unique)) {
+                    return null;
+                }
+                const keywordSource = Array.isArray(entry?.keywords)
+                    ? entry.keywords
+                    : typeof entry?.keywords === 'string'
+                        ? entry.keywords.split(',')
+                        : [];
+                const keywords = Array.from(new Set(keywordSource.concat(label)
+                    .map((keyword) => String(keyword || '').trim())
+                    .filter(Boolean)));
+                seen.add(unique);
+                return { type, label, keywords };
+            })
+            .filter(Boolean);
+
+        if (!sanitized.length && fallback) {
+            return cloneDefaultDataKeywords();
+        }
+        return sanitized;
+    }
+
+    function createDataKeywordRow(entry = {}) {
+        if (!dataKeywordListContainer) {
+            return null;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'validation-row';
+
+        const typeField = document.createElement('label');
+        typeField.textContent = 'Category';
+        const typeSelect = document.createElement('select');
+        typeSelect.className = 'data-keyword-type';
+        typeSelect.innerHTML = '<option value="eventType">Event Type</option><option value="validationType">Validation Type</option>';
+        typeSelect.value = entry.type === 'validationType' ? 'validationType' : 'eventType';
+        typeField.appendChild(typeSelect);
+
+        const labelField = document.createElement('label');
+        labelField.textContent = 'Label';
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'data-keyword-label';
+        labelInput.value = entry.label || '';
+        labelField.appendChild(labelInput);
+
+        const keywordField = document.createElement('label');
+        keywordField.textContent = 'Keywords';
+        const keywordInput = document.createElement('input');
+        keywordInput.type = 'text';
+        keywordInput.className = 'data-keyword-keywords';
+        keywordInput.placeholder = 'Comma separated matches';
+        keywordInput.value = Array.isArray(entry.keywords) ? entry.keywords.join(', ') : '';
+        keywordField.appendChild(keywordInput);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = '×';
+        removeBtn.className = 'remove icon-button';
+        removeBtn.addEventListener('click', async () => {
+            const confirmed = await requestConfirmation('Remove this data keyword label?');
+            if (confirmed) {
+                row.remove();
+            }
+        });
+
+        row.append(typeField, labelField, keywordField, removeBtn);
+        dataKeywordListContainer.appendChild(row);
         return labelInput;
     }
 
@@ -464,33 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rulesContainer.appendChild(div);
     }
 
-    const collapseButtons = document.querySelectorAll('.collapse-toggle');
-
-    function updateCollapseButton(button, collapsed) {
-        if (!button) {
-            return;
-        }
-
-        button.textContent = collapsed ? '+' : '−';
-        button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-        button.setAttribute('aria-label', collapsed ? 'Expand section' : 'Collapse section');
-    }
-
-    collapseButtons.forEach((button) => {
-        const section = button.closest('.page-card');
-        const isCollapsed = section?.classList.contains('collapsed') ?? false;
-        updateCollapseButton(button, isCollapsed);
-
-        button.addEventListener('click', () => {
-            const host = button.closest('.page-card');
-            if (!host) {
-                return;
-            }
-
-            const nextState = host.classList.toggle('collapsed');
-            updateCollapseButton(button, nextState);
-        });
-    });
+    CardCollapseState?.initCardCollapseState?.('settings');
 
     addRuleBtn.addEventListener('click', () => createRuleRow());
     addSiteRuleBtn.addEventListener('click', () => createSiteRuleRow());
@@ -507,8 +605,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if (validationFilterToggle) {
         validationFilterToggle.addEventListener('change', updateValidationEnabled);
     }
+    if (addDataKeywordButton) {
+        addDataKeywordButton.addEventListener('click', () => {
+            const input = createDataKeywordRow();
+            if (input) {
+                setTimeout(() => input.focus(), 50);
+            }
+        });
+    }
 
     smartSkipToggle.addEventListener('change', updateSkipEnabled);
+    if (notificationVolumeInput && notificationVolumeLabel) {
+        notificationVolumeInput.addEventListener('input', () => {
+            notificationVolumeLabel.textContent = `${Math.round(Number(notificationVolumeInput.value || 0) * 100)}%`;
+        });
+    }
     loopToggle.addEventListener('change', updateLoopEnabled);
     if (antiLagToggle) {
         antiLagToggle.addEventListener('change', updateAntiLagEnabled);
@@ -529,6 +640,15 @@ document.addEventListener('DOMContentLoaded', () => {
             validationFilterEnabled: true,
             antiLagEnabled: false,
             antiLagSeekSeconds: DEFAULT_ANTI_LAG_SEEK,
+            dataKeywords: DEFAULT_DATA_KEYWORDS,
+            notificationsEnabled: true,
+            notificationMode: 'windows',
+            notificationSoundEnabled: true,
+            notificationVolume: 0.25,
+            watchListNotificationsEnabled: true,
+            spotlightNotificationsEnabled: true,
+            notificationIncrementThreshold: 3,
+            notificationRepeatWindowMinutes: 2,
         },
         (data) => {
         const rules = data.customSpeedRules;
@@ -563,6 +683,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (validationFilterToggle) {
             validationFilterToggle.checked = data.validationFilterEnabled ?? true;
         }
+        const dataKeywords = sanitizeDataKeywordsInput(data.dataKeywords, { fallback: true });
+        if (dataKeywordListContainer) {
+            dataKeywords.forEach((entry) => createDataKeywordRow(entry));
+        }
+        if (notificationsEnabledInput) notificationsEnabledInput.checked = data.notificationsEnabled ?? true;
+        if (notificationModeInput) notificationModeInput.value = data.notificationMode === 'extension' ? 'extension' : 'windows';
+        if (notificationSoundEnabledInput) notificationSoundEnabledInput.checked = data.notificationSoundEnabled ?? true;
+        if (notificationVolumeInput) notificationVolumeInput.value = Number.isFinite(data.notificationVolume) ? data.notificationVolume : 0.25;
+        if (notificationVolumeLabel && notificationVolumeInput) notificationVolumeLabel.textContent = `${Math.round(Number(notificationVolumeInput.value) * 100)}%`;
+        if (watchListNotificationsEnabledInput) watchListNotificationsEnabledInput.checked = data.watchListNotificationsEnabled !== false;
+        if (spotlightNotificationsEnabledInput) spotlightNotificationsEnabledInput.checked = data.spotlightNotificationsEnabled !== false;
+        if (notificationIncrementThresholdInput) notificationIncrementThresholdInput.value = Number.isFinite(data.notificationIncrementThreshold) ? Math.max(1, Number(data.notificationIncrementThreshold)) : 3;
+        if (notificationRepeatWindowMinutesInput) notificationRepeatWindowMinutesInput.value = Number.isFinite(data.notificationRepeatWindowMinutes) ? Math.max(1, Number(data.notificationRepeatWindowMinutes)) : 2;
         updateSkipEnabled();
         updateLoopEnabled();
         updateValidationEnabled();
@@ -619,7 +752,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const sanitizedVocabulary = sanitizeVocabularyInput(vocabularyEntries, { fallback: false });
+        const dataKeywordEntries = [];
+        if (dataKeywordListContainer) {
+            dataKeywordListContainer.querySelectorAll('.validation-row').forEach((row) => {
+                const typeInput = row.querySelector('.data-keyword-type');
+                const labelInput = row.querySelector('.data-keyword-label');
+                const keywordsInput = row.querySelector('.data-keyword-keywords');
+                const label = labelInput ? labelInput.value.trim() : '';
+                if (!label) {
+                    return;
+                }
+                const keywords = keywordsInput
+                    ? keywordsInput.value.split(',').map((keyword) => keyword.trim()).filter(Boolean)
+                    : [];
+                dataKeywordEntries.push({
+                    type: typeInput?.value === 'validationType' ? 'validationType' : 'eventType',
+                    label,
+                    keywords,
+                });
+            });
+        }
+        const sanitizedDataKeywords = sanitizeDataKeywordsInput(dataKeywordEntries, { fallback: false });
         const validationFilterEnabled = validationFilterToggle ? validationFilterToggle.checked : true;
+        const notificationsEnabled = notificationsEnabledInput ? notificationsEnabledInput.checked : true;
+        const notificationMode = notificationModeInput?.value === 'extension' ? 'extension' : 'windows';
+        const notificationSoundEnabled = notificationSoundEnabledInput ? notificationSoundEnabledInput.checked : true;
+        const notificationVolume = Math.max(0, Math.min(1, Number(notificationVolumeInput?.value ?? 0.25) || 0));
+        const watchListNotificationsEnabled = watchListNotificationsEnabledInput ? watchListNotificationsEnabledInput.checked : true;
+        const spotlightNotificationsEnabled = spotlightNotificationsEnabledInput ? spotlightNotificationsEnabledInput.checked : true;
+        const notificationIncrementThreshold = Math.max(1, Math.min(20, Number(notificationIncrementThresholdInput?.value ?? 3) || 3));
+        const notificationRepeatWindowMinutes = Math.max(1, Math.min(30, Number(notificationRepeatWindowMinutesInput?.value ?? 2) || 2));
 
         const siteRules = {};
         siteRulesContainer.querySelectorAll('.site-rule').forEach(div => {
@@ -657,6 +819,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 validationFilterEnabled,
                 antiLagEnabled,
                 antiLagSeekSeconds,
+                dataKeywords: sanitizedDataKeywords,
+                notificationsEnabled,
+                notificationMode,
+                notificationSoundEnabled,
+                notificationVolume,
+                watchListNotificationsEnabled,
+                spotlightNotificationsEnabled,
+                notificationIncrementThreshold,
+                notificationRepeatWindowMinutes,
             },
             () => {
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -675,6 +846,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             validationFilterEnabled,
                             antiLagEnabled,
                             antiLagSeekSeconds,
+                            dataKeywords: sanitizedDataKeywords,
+                            notificationsEnabled,
+                            notificationMode,
+                            notificationSoundEnabled,
+                            notificationVolume,
+                            watchListNotificationsEnabled,
+                            spotlightNotificationsEnabled,
+                            notificationIncrementThreshold,
+                            notificationRepeatWindowMinutes,
                         });
                     }
                 });

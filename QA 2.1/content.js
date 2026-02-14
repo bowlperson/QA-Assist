@@ -569,7 +569,6 @@ function collectEventDetails(video, options = {}) {
     const eventData = {
         eventType,
         truckNumber,
-        operatorName: operatorName || "",
         timestamp,
         pageUrl,
         isLastCell,
@@ -606,7 +605,7 @@ function createEventSignature(eventData) {
         return "";
     }
 
-    const parts = [eventData.eventId, eventData.eventType, eventData.timestamp, eventData.truckNumber, eventData.operatorName];
+    const parts = [eventData.eventId, eventData.eventType, eventData.timestamp, eventData.truckNumber];
     return parts
         .map((value) => String(value || "").trim().toLowerCase())
         .filter((value) => value.length > 0)
@@ -669,37 +668,17 @@ function registerEventLog(eventData, callback) {
 
     const eventKey = createEventKey(eventData);
 
-    chrome.storage.local.get("eventLogs", (data) => {
-        const logs = Array.isArray(data.eventLogs) ? data.eventLogs : [];
-        const existingLog = eventKey
-            ? logs.find((log) => log.eventKey === eventKey || createEventKey(log) === eventKey)
-            : null;
-
-        if (existingLog) {
-            if (!existingLog.eventKey && eventKey) {
-                existingLog.eventKey = eventKey;
-                chrome.storage.local.set({ eventLogs: logs }, () => {
-                    if (typeof callback === "function") {
-                        callback(existingLog);
-                    }
-                });
-                return;
-            }
-            if (typeof callback === "function") {
-                setTimeout(() => callback(existingLog), 0);
-            }
-            return;
-        }
-
-        resolveSiteName(eventData.pageUrl).then(({ siteName, siteMatchValue }) => {
+    resolveSiteName(eventData.pageUrl)
+        .then(({ siteName, siteMatchValue }) => {
             const rawValidation = eventData.validationTypeRaw || eventData.validationType || "";
             const callValidation = eventData.callValidationType || rawValidation;
             const normalizedValidation = state.validationFilterEnabled
                 ? findValidationLabel(callValidation || rawValidation)
                 : callValidation;
 
-            const enrichedEvent = {
+            return {
                 ...eventData,
+                operatorName: "",
                 validationTypeRaw: rawValidation,
                 validationTypeDetected: rawValidation,
                 detectedValidation: rawValidation,
@@ -707,20 +686,51 @@ function registerEventLog(eventData, callback) {
                 callValidationType: normalizedValidation || callValidation || rawValidation,
                 siteName,
                 siteMatchValue,
+                eventDate: (typeof EventLogDB !== "undefined" && EventLogDB.deriveEventDate)
+                    ? EventLogDB.deriveEventDate(eventData)
+                    : "",
                 createdAt: new Date().toISOString(),
                 callHistory: [],
                 eventKey,
                 id: generateLogId(),
             };
-
-            logs.push(enrichedEvent);
-            chrome.storage.local.set({ eventLogs: logs }, () => {
-                if (typeof callback === "function") {
-                    callback(enrichedEvent);
+        })
+        .then((enrichedEvent) => {
+            if (!chrome?.runtime?.sendMessage) {
+                if (typeof EventLogDB !== "undefined" && EventLogDB.upsert) {
+                    return EventLogDB.upsert(enrichedEvent);
                 }
+                throw new Error("No event logging transport available");
+            }
+
+            return new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({ type: "eventLogUpsert", event: enrichedEvent }, (response) => {
+                    const runtimeError = chrome.runtime.lastError;
+                    if (runtimeError) {
+                        reject(new Error(runtimeError.message || "Failed to send event log message"));
+                        return;
+                    }
+
+                    if (!response?.success) {
+                        reject(new Error(response?.error || "Background rejected event log upsert"));
+                        return;
+                    }
+
+                    resolve(response.record || enrichedEvent);
+                });
             });
+        })
+        .then((storedLog) => {
+            if (typeof callback === "function") {
+                callback(storedLog || null);
+            }
+        })
+        .catch((error) => {
+            console.warn("Unable to persist event log", error);
+            if (typeof callback === "function") {
+                callback(null);
+            }
         });
-    });
 }
 
 function getActiveVideoElement() {

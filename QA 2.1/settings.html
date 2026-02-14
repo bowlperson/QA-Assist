@@ -20,7 +20,7 @@
             </nav>
         </header>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="customSpeed">
             <div class="card-header">
                 <h2>Custom speed</h2>
                 <div class="card-controls">
@@ -34,7 +34,7 @@
             </div>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="smartSkip">
             <div class="card-header">
                 <h2>Smart skip</h2>
                 <div class="card-controls">
@@ -52,7 +52,7 @@
             </div>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="autoLoop">
             <div class="card-header">
                 <h2>Auto loop</h2>
                 <div class="card-controls">
@@ -76,7 +76,7 @@
             </div>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="oasMode">
             <div class="card-header">
                 <h2>OAS Mode</h2>
                 <div class="card-controls">
@@ -91,7 +91,7 @@
             </div>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="antiLag">
             <div class="card-header">
                 <h2>Anti lag</h2>
                 <div class="card-controls">
@@ -109,7 +109,7 @@
             </div>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="validationFilter">
             <div class="card-header">
                 <h2>Validation filter</h2>
                 <div class="card-controls">
@@ -126,7 +126,21 @@
             </div>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="dataKeywords">
+            <div class="card-header">
+                <h2>Data Keywords</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p class="helper-text">Configure event-type and validation-type keyword aliases used by QA Control sections.</p>
+                <div id="dataKeywordList" class="validation-list"></div>
+                <button id="addDataKeyword" type="button" class="secondary">Add data keyword label</button>
+            </div>
+        </section>
+
+        <section class="page-card" data-collapse-id="bufferBetweenVideos">
             <div class="card-header">
                 <h2>Buffer between videos</h2>
                 <div class="card-controls">
@@ -141,7 +155,7 @@
             </div>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="siteOverrides">
             <div class="card-header">
                 <h2>Site overrides</h2>
                 <div class="card-controls">
@@ -152,6 +166,56 @@
             <div class="card-body">
                 <p class="helper-text">Create domain-specific automation profiles. Overrides apply automatically when the active tab matches the configured pattern.</p>
                 <div id="siteRulesContainer" class="stack"></div>
+            </div>
+        </section>
+
+
+        <section class="page-card" data-collapse-id="notifications">
+            <div class="card-header">
+                <h2>Notifications</h2>
+                <div class="card-controls">
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <label class="toggle-row">
+                    <input id="notificationsEnabled" type="checkbox"> <span>Enable alert notifications</span>
+                </label>
+                <div class="grid two">
+                    <label class="inline-input">
+                        Delivery mode
+                        <select id="notificationMode">
+                            <option value="windows">Windows notification</option>
+                            <option value="extension">Extension popup</option>
+                        </select>
+                    </label>
+                    <label class="toggle-row inline-toggle">
+                        <input id="notificationSoundEnabled" type="checkbox"> <span>Play notification sound</span>
+                    </label>
+                </div>
+                <label class="inline-input">
+                    Volume
+                    <input id="notificationVolume" type="range" min="0" max="1" step="0.05" value="0.25">
+                    <span id="notificationVolumeLabel">25%</span>
+                </label>
+                <div class="grid two">
+                    <label class="toggle-row inline-toggle">
+                        <input id="watchListNotificationsEnabled" type="checkbox"> <span>Truck Watch List notifications</span>
+                    </label>
+                    <label class="toggle-row inline-toggle">
+                        <input id="spotlightNotificationsEnabled" type="checkbox"> <span>Technical Spotlight notifications</span>
+                    </label>
+                </div>
+                <div class="grid two">
+                    <label class="inline-input">
+                        New events needed for follow-up alert
+                        <input id="notificationIncrementThreshold" type="number" min="1" max="20" value="3">
+                    </label>
+                    <label class="inline-input">
+                        Wait before follow-up alert (minutes)
+                        <input id="notificationRepeatWindowMinutes" type="number" min="1" max="30" value="2">
+                    </label>
+                </div>
             </div>
         </section>
 
@@ -173,6 +237,7 @@
         </div>
     </div>
 
+    <script src="card-collapse-state.js"></script>
     <script src="settings.js"></script>
 </body>
 </html>
