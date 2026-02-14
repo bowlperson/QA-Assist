@@ -31,6 +31,27 @@
             </div>
         </header>
 
+
+        <section class="page-card" id="notificationHubCard" data-collapse-id="notificationHub">
+            <div class="card-header">
+                <h2>Notification Hub</h2>
+                <div class="card-controls">
+                    <span id="notificationHubUnread" class="badge subtle">0 unread</span>
+                    <button id="markAllNotificationsRead" class="secondary" type="button">Mark all as read</button>
+                    <button id="clearAllNotifications" class="ghost" type="button">Clear all</button>
+                    <button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="notificationHubList" class="notification-list"></div>
+                <div class="notification-pagination">
+                    <button id="notificationPrevPage" class="secondary" type="button">◀</button>
+                    <span id="notificationPageLabel">Page 1</span>
+                    <button id="notificationNextPage" class="secondary" type="button">▶</button>
+                </div>
+            </div>
+        </section>
+
         <section class="page-card" id="siteStatsCard" data-collapse-id="siteStats">
             <div class="card-header">
                 <h2>Site stats</h2>

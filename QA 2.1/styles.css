@@ -2045,3 +2045,55 @@ body.popup {
         display: none;
     }
 }
+
+.notification-list {
+    display: grid;
+    gap: 10px;
+}
+
+.notification-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.notification-row.is-read {
+    opacity: 0.55;
+}
+
+.notification-main {
+    display: grid;
+    gap: 4px;
+}
+
+.notification-title {
+    font-weight: 700;
+}
+
+.notification-description {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.notification-time {
+    color: var(--muted);
+    font-size: 10px;
+}
+
+.notification-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.notification-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}

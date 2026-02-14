@@ -76,6 +76,16 @@ let controlToastElement = null;
 let controlToastTimeoutId = null;
 let activeDataCenterRows = [];
 let alertSoundSettings = { enabled: true, volume: 0.25 };
+let notificationHubList = null;
+let notificationHubUnread = null;
+let notificationPrevPage = null;
+let notificationNextPage = null;
+let notificationPageLabel = null;
+let markAllNotificationsReadButton = null;
+let clearAllNotificationsButton = null;
+let notificationHubEntries = [];
+let notificationPageIndex = 0;
+const NOTIFICATION_PAGE_SIZE = 7;
 let currentDataKeywords = sanitizeDataKeywords(DEFAULT_DATA_KEYWORDS);
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -110,6 +120,13 @@ document.addEventListener("DOMContentLoaded", () => {
     fluctuationExportButton = document.getElementById("fluctuationExport");
     refreshButton = document.getElementById("controlRefresh");
     controlToastElement = document.getElementById("controlToast");
+    notificationHubList = document.getElementById("notificationHubList");
+    notificationHubUnread = document.getElementById("notificationHubUnread");
+    notificationPrevPage = document.getElementById("notificationPrevPage");
+    notificationNextPage = document.getElementById("notificationNextPage");
+    notificationPageLabel = document.getElementById("notificationPageLabel");
+    markAllNotificationsReadButton = document.getElementById("markAllNotificationsRead");
+    clearAllNotificationsButton = document.getElementById("clearAllNotifications");
     dataCenterModal = document.getElementById("dataCenterModal");
     closeDataCenterModalButton = document.getElementById("closeDataCenterModal");
     dataCenterModalList = document.getElementById("dataCenterModalList");
@@ -174,8 +191,117 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    setupNotificationHub();
+    loadNotificationHub();
+
     loadControlData();
 });
+
+function setupNotificationHub() {
+    if (notificationPrevPage) {
+        notificationPrevPage.addEventListener("click", () => {
+            notificationPageIndex = Math.max(0, notificationPageIndex - 1);
+            renderNotificationHub();
+        });
+    }
+    if (notificationNextPage) {
+        notificationNextPage.addEventListener("click", () => {
+            const totalPages = Math.max(1, Math.ceil(notificationHubEntries.length / NOTIFICATION_PAGE_SIZE));
+            notificationPageIndex = Math.min(totalPages - 1, notificationPageIndex + 1);
+            renderNotificationHub();
+        });
+    }
+    if (markAllNotificationsReadButton) {
+        markAllNotificationsReadButton.addEventListener("click", () => {
+            chrome.runtime.sendMessage({ type: "markAllAlertsRead" }, () => loadNotificationHub());
+        });
+    }
+    if (clearAllNotificationsButton) {
+        clearAllNotificationsButton.addEventListener("click", () => {
+            chrome.runtime.sendMessage({ type: "clearAlerts" }, () => loadNotificationHub());
+        });
+    }
+
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === "local" && changes.alertNotifications) {
+            loadNotificationHub();
+        }
+    });
+}
+
+function loadNotificationHub() {
+    chrome.runtime.sendMessage({ type: "getAlertNotifications" }, (response) => {
+        if (chrome.runtime.lastError) {
+            return;
+        }
+        notificationHubEntries = Array.isArray(response?.notifications) ? response.notifications : [];
+        const totalPages = Math.max(1, Math.ceil(notificationHubEntries.length / NOTIFICATION_PAGE_SIZE));
+        notificationPageIndex = Math.min(notificationPageIndex, totalPages - 1);
+        renderNotificationHub();
+    });
+}
+
+function renderNotificationHub() {
+    if (!notificationHubList) {
+        return;
+    }
+    const unread = notificationHubEntries.filter((entry) => !entry.read).length;
+    if (notificationHubUnread) {
+        notificationHubUnread.textContent = `${unread} unread`;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(notificationHubEntries.length / NOTIFICATION_PAGE_SIZE));
+    const start = notificationPageIndex * NOTIFICATION_PAGE_SIZE;
+    const pageItems = notificationHubEntries.slice(start, start + NOTIFICATION_PAGE_SIZE);
+
+    notificationHubList.innerHTML = "";
+    if (!pageItems.length) {
+        notificationHubList.innerHTML = '<p class="empty-state">No notifications yet.</p>';
+    } else {
+        pageItems.forEach((entry) => {
+            const row = document.createElement("article");
+            row.className = `notification-row${entry.read ? " is-read" : ""}`;
+            const timeText = formatTimestamp(entry.createdAt, "—", { hour12: false });
+            row.innerHTML = `
+                <div class="notification-main">
+                    <div class="notification-title">${escapeHtml(entry.title || "Alert")}</div>
+                    <div class="notification-description">${escapeHtml(entry.description || "")}</div>
+                    <div class="notification-time">${escapeHtml(timeText)}</div>
+                </div>
+                <div class="notification-actions">
+                    <button type="button" class="secondary mark-read-btn" data-id="${escapeHtml(entry.id || "")}">Mark read</button>
+                    <button type="button" class="ghost delete-alert-btn" data-id="${escapeHtml(entry.id || "")}">Delete</button>
+                </div>
+            `;
+            notificationHubList.appendChild(row);
+        });
+
+        notificationHubList.querySelectorAll(".mark-read-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                const id = safeText(button.dataset.id);
+                if (!id) return;
+                chrome.runtime.sendMessage({ type: "markAlertRead", id }, () => loadNotificationHub());
+            });
+        });
+        notificationHubList.querySelectorAll(".delete-alert-btn").forEach((button) => {
+            button.addEventListener("click", () => {
+                const id = safeText(button.dataset.id);
+                if (!id) return;
+                chrome.runtime.sendMessage({ type: "deleteAlert", id }, () => loadNotificationHub());
+            });
+        });
+    }
+
+    if (notificationPageLabel) {
+        notificationPageLabel.textContent = `Page ${notificationPageIndex + 1} of ${totalPages}`;
+    }
+    if (notificationPrevPage) {
+        notificationPrevPage.disabled = notificationPageIndex <= 0;
+    }
+    if (notificationNextPage) {
+        notificationNextPage.disabled = notificationPageIndex >= totalPages - 1;
+    }
+}
 
 function loadControlData(options = {}) {
     const { announce = false, showLoading = false } = options;
@@ -247,7 +373,6 @@ function loadControlData(options = {}) {
         const dataCenterLogs = filterLogsByRange(logs, dataCenterRangeStartInput?.value, dataCenterRangeEndInput?.value);
         activeDataCenterRows = renderDataCenter(dataCenterLogs);
 
-        notifyOnNewAlerts(watchLists, spotlights, config);
 
         currentFluctuationClusters = renderFluctuations(logs, fluctuationContainer);
         updateFluctuationExportButton(fluctuationExportButton, currentFluctuationClusters);
@@ -1153,40 +1278,6 @@ function closeDataCenterEventsModal() {
     }
     dataCenterModal.classList.remove("show");
     dataCenterModal.setAttribute("aria-hidden", "true");
-}
-
-function notifyOnNewAlerts(watchLists, spotlights, config) {
-    if (!config.notificationsEnabled) {
-        return;
-    }
-    const alerts = [];
-    const pushAlerts = (entries, sourceLabel) => {
-        (Array.isArray(entries) ? entries : []).forEach((entry) => {
-            const key = `${sourceLabel}|${entry.truck}|${entry.site}|${entry.window?.start}|${entry.window?.end}|${entry.total}`;
-            alerts.push({
-                key,
-                source: sourceLabel,
-                title: `${sourceLabel}: ${entry.truck}`,
-                description: `${entry.site} · ${entry.total} alerts · ${formatRange(entry.window?.start, entry.window?.end)}`,
-            });
-        });
-    };
-
-    pushAlerts(watchLists?.withinOneHour, "Watch List");
-    pushAlerts(spotlights?.eventTypes?.top, "Technical Spotlight");
-    pushAlerts(spotlights?.validationTypes?.top, "Technical Spotlight");
-
-    if (!alerts.length) {
-        return;
-    }
-
-    if (config.notificationMode === "extension") {
-        showControlToast(alerts[0].description);
-    }
-
-    playNotificationSound();
-
-    chrome.runtime.sendMessage({ type: "qaControlAlerts", alerts, mode: config.notificationMode }, () => chrome.runtime.lastError);
 }
 
 function playNotificationSound() {
