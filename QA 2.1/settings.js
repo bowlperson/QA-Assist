@@ -61,6 +61,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const notificationSoundEnabledInput = document.getElementById('notificationSoundEnabled');
     const notificationVolumeInput = document.getElementById('notificationVolume');
     const notificationVolumeLabel = document.getElementById('notificationVolumeLabel');
+    const watchListNotificationsEnabledInput = document.getElementById('watchListNotificationsEnabled');
+    const spotlightNotificationsEnabledInput = document.getElementById('spotlightNotificationsEnabled');
+    const notificationIncrementThresholdInput = document.getElementById('notificationIncrementThreshold');
+    const notificationRepeatWindowMinutesInput = document.getElementById('notificationRepeatWindowMinutes');
     const siteRulesContainer = document.getElementById('siteRulesContainer');
     const addSiteRuleBtn = document.getElementById('addSiteRule');
     const toast = document.getElementById('settingsToast');
@@ -641,6 +645,10 @@ document.addEventListener('DOMContentLoaded', () => {
             notificationMode: 'windows',
             notificationSoundEnabled: true,
             notificationVolume: 0.25,
+            watchListNotificationsEnabled: true,
+            spotlightNotificationsEnabled: true,
+            notificationIncrementThreshold: 3,
+            notificationRepeatWindowMinutes: 2,
         },
         (data) => {
         const rules = data.customSpeedRules;
@@ -684,6 +692,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (notificationSoundEnabledInput) notificationSoundEnabledInput.checked = data.notificationSoundEnabled ?? true;
         if (notificationVolumeInput) notificationVolumeInput.value = Number.isFinite(data.notificationVolume) ? data.notificationVolume : 0.25;
         if (notificationVolumeLabel && notificationVolumeInput) notificationVolumeLabel.textContent = `${Math.round(Number(notificationVolumeInput.value) * 100)}%`;
+        if (watchListNotificationsEnabledInput) watchListNotificationsEnabledInput.checked = data.watchListNotificationsEnabled !== false;
+        if (spotlightNotificationsEnabledInput) spotlightNotificationsEnabledInput.checked = data.spotlightNotificationsEnabled !== false;
+        if (notificationIncrementThresholdInput) notificationIncrementThresholdInput.value = Number.isFinite(data.notificationIncrementThreshold) ? Math.max(1, Number(data.notificationIncrementThreshold)) : 3;
+        if (notificationRepeatWindowMinutesInput) notificationRepeatWindowMinutesInput.value = Number.isFinite(data.notificationRepeatWindowMinutes) ? Math.max(1, Number(data.notificationRepeatWindowMinutes)) : 2;
         updateSkipEnabled();
         updateLoopEnabled();
         updateValidationEnabled();
@@ -766,6 +778,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const notificationMode = notificationModeInput?.value === 'extension' ? 'extension' : 'windows';
         const notificationSoundEnabled = notificationSoundEnabledInput ? notificationSoundEnabledInput.checked : true;
         const notificationVolume = Math.max(0, Math.min(1, Number(notificationVolumeInput?.value ?? 0.25) || 0));
+        const watchListNotificationsEnabled = watchListNotificationsEnabledInput ? watchListNotificationsEnabledInput.checked : true;
+        const spotlightNotificationsEnabled = spotlightNotificationsEnabledInput ? spotlightNotificationsEnabledInput.checked : true;
+        const notificationIncrementThreshold = Math.max(1, Math.min(20, Number(notificationIncrementThresholdInput?.value ?? 3) || 3));
+        const notificationRepeatWindowMinutes = Math.max(1, Math.min(30, Number(notificationRepeatWindowMinutesInput?.value ?? 2) || 2));
 
         const siteRules = {};
         siteRulesContainer.querySelectorAll('.site-rule').forEach(div => {
@@ -808,6 +824,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 notificationMode,
                 notificationSoundEnabled,
                 notificationVolume,
+                watchListNotificationsEnabled,
+                spotlightNotificationsEnabled,
+                notificationIncrementThreshold,
+                notificationRepeatWindowMinutes,
             },
             () => {
                 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -831,6 +851,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             notificationMode,
                             notificationSoundEnabled,
                             notificationVolume,
+                            watchListNotificationsEnabled,
+                            spotlightNotificationsEnabled,
+                            notificationIncrementThreshold,
+                            notificationRepeatWindowMinutes,
                         });
                     }
                 });

@@ -222,7 +222,7 @@ function findClusterWindows(events, windowSize, minCount) {
     return clusters;
 }
 
-function collectAlertCandidates(logs) {
+function collectAlertCandidates(logs, settings) {
     const byIdentity = new Map();
     (Array.isArray(logs) ? logs : []).forEach((log) => {
         const identity = buildIdentity(log);
@@ -233,26 +233,38 @@ function collectAlertCandidates(logs) {
     });
 
     const candidates = [];
-    byIdentity.forEach((group) => {
-        const fatigueEvents = group.events.filter((event) => isFatigueValidation(event.callValidationType || event.validationType));
-        findClusterWindows(fatigueEvents, ALERT_WINDOW_MS, 3).forEach((cluster) => {
-            candidates.push({
-                key: `watch|${group.key}|${cluster.start}|${cluster.end}|${cluster.count}`,
-                title: `Watch List: ${group.truck}`,
-                description: `${group.site} · ${cluster.count} fatigue alerts in 1 hour`,
-                createdAt: cluster.end,
-            });
-        });
+    const watchEnabled = settings.watchListNotificationsEnabled !== false;
+    const spotlightEnabled = settings.spotlightNotificationsEnabled !== false;
+    const spotlightStartThreshold = Math.max(3, Number(settings.spotlightInitialThreshold) || 5);
 
-        const spotlightEvents = group.events.filter((event) => matchesSpotlight(event.eventType) || matchesSpotlight(event.callValidationType || event.validationType));
-        findClusterWindows(spotlightEvents, ALERT_WINDOW_MS, 3).forEach((cluster) => {
-            candidates.push({
-                key: `spotlight|${group.key}|${cluster.start}|${cluster.end}|${cluster.count}`,
-                title: `Technical Spotlight: ${group.truck}`,
-                description: `${group.site} · ${cluster.count} technical alerts in 1 hour`,
-                createdAt: cluster.end,
+    byIdentity.forEach((group) => {
+        if (watchEnabled) {
+            const fatigueEvents = group.events.filter((event) => isFatigueValidation(event.callValidationType || event.validationType));
+            findClusterWindows(fatigueEvents, ALERT_WINDOW_MS, 3).forEach((cluster) => {
+                candidates.push({
+                    key: `watch|${group.key}|${cluster.start}|${cluster.end}`,
+                    title: `Watch List: ${group.truck}`,
+                    description: `${group.site} · ${cluster.count} fatigue alerts in 1 hour`,
+                    createdAt: cluster.end,
+                    count: cluster.count,
+                    source: "watch",
+                });
             });
-        });
+        }
+
+        if (spotlightEnabled) {
+            const spotlightEvents = group.events.filter((event) => matchesSpotlight(event.eventType) || matchesSpotlight(event.callValidationType || event.validationType));
+            findClusterWindows(spotlightEvents, ALERT_WINDOW_MS, spotlightStartThreshold).forEach((cluster) => {
+                candidates.push({
+                    key: `spotlight|${group.key}|${cluster.start}|${cluster.end}`,
+                    title: `Technical Spotlight: ${group.truck}`,
+                    description: `${group.site} · ${cluster.count} technical alerts in 1 hour`,
+                    createdAt: cluster.end,
+                    count: cluster.count,
+                    source: "spotlight",
+                });
+            });
+        }
     });
 
     return candidates.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -286,7 +298,12 @@ function runAlertScan() {
                 notificationsEnabled: true,
                 notificationMode: "windows",
                 alertNotifications: [],
-                seenAlertKeys: [],
+                notificationAlertState: {},
+                watchListNotificationsEnabled: true,
+                spotlightNotificationsEnabled: true,
+                notificationIncrementThreshold: 3,
+                notificationRepeatWindowMinutes: 2,
+                spotlightInitialThreshold: 5,
             }, resolve);
         }),
     ]).then(([rawLogs, settings]) => {
@@ -294,8 +311,10 @@ function runAlertScan() {
             return;
         }
 
-        const seenKeys = new Set(Array.isArray(settings.seenAlertKeys) ? settings.seenAlertKeys : []);
         const existingNotifications = Array.isArray(settings.alertNotifications) ? settings.alertNotifications : [];
+        const state = settings.notificationAlertState && typeof settings.notificationAlertState === "object"
+            ? { ...settings.notificationAlertState }
+            : {};
 
         const normalized = (Array.isArray(rawLogs) ? rawLogs : []).map((log) => ({
             ...log,
@@ -308,19 +327,68 @@ function runAlertScan() {
             deduped.set(key || `${log.id || ""}|${log.timestampMs}`, log);
         });
 
-        const candidates = collectAlertCandidates(Array.from(deduped.values()));
-        const newAlerts = candidates.filter((alert) => alert.key && !seenKeys.has(alert.key));
-        if (!newAlerts.length) {
+        const candidates = collectAlertCandidates(Array.from(deduped.values()), settings);
+        const now = Date.now();
+        const incrementThreshold = Math.max(1, Number(settings.notificationIncrementThreshold) || 3);
+        const repeatWindowMs = Math.max(1, Number(settings.notificationRepeatWindowMinutes) || 2) * 60 * 1000;
+        const watchInitialThreshold = 3;
+        const spotlightInitialThreshold = Math.max(3, Number(settings.spotlightInitialThreshold) || 5);
+
+        const alertsToSend = [];
+        const currentKeys = new Set();
+
+        candidates.forEach((candidate) => {
+            currentKeys.add(candidate.key);
+            const candidateCount = Number(candidate.count) || 0;
+            const sourceInitial = candidate.source === "watch" ? watchInitialThreshold : spotlightInitialThreshold;
+            if (candidateCount < sourceInitial) {
+                return;
+            }
+
+            const entry = state[candidate.key] || { lastCount: 0, lastNotifiedAt: 0 };
+            const delta = candidateCount - Number(entry.lastCount || 0);
+            const elapsed = now - Number(entry.lastNotifiedAt || 0);
+            const isInitial = Number(entry.lastCount || 0) === 0;
+
+            let shouldNotify = false;
+            if (isInitial && candidateCount >= sourceInitial) {
+                shouldNotify = true;
+            } else if (delta >= incrementThreshold) {
+                shouldNotify = true;
+            } else if (delta > 0 && elapsed >= repeatWindowMs) {
+                shouldNotify = true;
+            }
+
+            if (shouldNotify) {
+                alertsToSend.push(candidate);
+                state[candidate.key] = {
+                    lastCount: candidateCount,
+                    lastNotifiedAt: now,
+                };
+            } else {
+                state[candidate.key] = {
+                    lastCount: Math.max(Number(entry.lastCount || 0), candidateCount),
+                    lastNotifiedAt: Number(entry.lastNotifiedAt || 0),
+                };
+            }
+        });
+
+        Object.keys(state).forEach((key) => {
+            if (!currentKeys.has(key)) {
+                delete state[key];
+            }
+        });
+
+        if (!alertsToSend.length) {
             updateBadgeFromNotifications(existingNotifications);
+            chrome.storage.local.set({ notificationAlertState: state });
             return;
         }
 
-        const records = newAlerts.map(createAlertRecord);
+        const records = alertsToSend.map(createAlertRecord);
         const notifications = records.concat(existingNotifications).slice(0, 300);
-        records.forEach((record) => seenKeys.add(record.key));
-        const seenAlertKeys = Array.from(seenKeys).slice(-800);
 
-        chrome.storage.local.set({ alertNotifications: notifications, seenAlertKeys }, () => {
+        chrome.storage.local.set({ alertNotifications: notifications, notificationAlertState: state }, () => {
             updateBadgeFromNotifications(notifications);
             const mode = settings.notificationMode === "extension" ? "extension" : "windows";
             if (mode === "windows") {
@@ -419,7 +487,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.type === "clearAlerts") {
-        chrome.storage.local.set({ alertNotifications: [], seenAlertKeys: [] }, () => {
+        chrome.storage.local.set({ alertNotifications: [] }, () => {
             updateBadgeFromNotifications([]);
             sendResponse({ success: true });
         });
