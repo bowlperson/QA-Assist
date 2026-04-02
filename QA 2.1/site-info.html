@@ -20,10 +20,10 @@
             </nav>
         </header>
 
-        <section class="page-card table-card">
+        <section class="page-card table-card" data-collapse-id="savedSites">
             <div class="card-header">
                 <h2>Saved sites</h2>
-                <span class="badge subtle" id="siteCount">0 sites</span>
+                <div class="card-controls"><span class="badge subtle" id="siteCount">0 sites</span><button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button></div>
             </div>
             <table>
                 <thead>
@@ -39,9 +39,10 @@
             <p class="helper-text">Sites are sorted alphabetically for faster lookups during calls.</p>
         </section>
 
-        <section class="page-card">
+        <section class="page-card" data-collapse-id="addSite">
             <div class="card-header">
                 <h2>Add site</h2>
+                <div class="card-controls"><button class="collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse section"></button></div>
             </div>
             <div class="site-form">
                 <div class="form-grid">
@@ -68,6 +69,7 @@
     <button class="primary floating-save" id="addSite" type="button">Add site</button>
     <div class="toast" id="toast"></div>
 
+    <script src="card-collapse-state.js"></script>
     <script src="site-info.js"></script>
 </body>
 </html>
