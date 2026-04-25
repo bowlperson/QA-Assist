@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+    CardCollapseState?.initCardCollapseState?.("siteInfo");
     const siteTableBody = document.getElementById("siteTableBody");
     const siteCount = document.getElementById("siteCount");
     const siteNameInput = document.getElementById("siteNameInput");
